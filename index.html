@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your Name | Web Developer</title>
+  <meta name="description" content="Portfolio of Your Name, a freelance web developer in Ethiopia. Projects, skills, resume and contact links.">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Apply the saved theme before first paint so the page never flashes the wrong colors -->
+  <script>
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem("theme"); } catch (e) {}
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=Noto+Sans+Ethiopic:wght@800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top" aria-label="Your Name, back to top">Your Name</a>
+
+      <nav id="site-nav" class="site-nav" aria-label="Main">
+        <ul>
+          <li><a href="#about">About</a></li>
+          <li><a href="#skills">Skills</a></li>
+          <li><a href="#projects">Projects</a></li>
+          <li><a href="#resume">Resume</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-actions">
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to dark theme">
+          <svg class="icon icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7Z"/></svg>
+          <svg class="icon icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg>
+        </button>
+        <button id="menu-toggle" class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open menu">
+          <span class="bars" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section id="top" class="hero">
+      <div class="wrap">
+        <p class="hello" lang="am">ሰላም</p>
+        <h1>I'm Your Name. I build fast, clear websites for people who need them to work.</h1>
+        <p class="lead">Web developer based in Ethiopia, available for freelance projects. I design and build responsive sites and web apps with HTML, CSS, JavaScript and React.</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#projects">See my projects</a>
+          <a class="btn btn-ghost" href="#contact">Get in touch</a>
+        </div>
+      </div>
+      <div class="tibeb" role="presentation"></div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="section">
+      <div class="wrap about-grid">
+        <h2>About me</h2>
+        <div class="prose">
+          <p>I'm a web developer who likes turning a messy real-world need into a simple tool people can use on a phone. My projects include an Amharic-language calculator for fuel tankers and a React platform with login and an admin dashboard.</p>
+          <p>I work mobile-first because that is how most people here reach the web. I care about readable code, fast pages and interfaces that make sense the first time you open them.</p>
+          <p>I'm currently taking on freelance work: business websites, landing pages, and small web apps.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Skills -->
+    <section id="skills" class="section section-tint">
+      <div class="wrap">
+        <h2>Tech stack</h2>
+        <div class="skills-grid">
+          <div class="skill-group">
+            <h3>Front end</h3>
+            <ul>
+              <li>HTML5</li>
+              <li>CSS3, Flexbox, Grid</li>
+              <li>JavaScript (ES6+)</li>
+              <li>TypeScript</li>
+              <li>React</li>
+            </ul>
+          </div>
+          <div class="skill-group">
+            <h3>Tools</h3>
+            <ul>
+              <li>Git and GitHub</li>
+              <li>Vite</li>
+              <li>npm</li>
+              <li>Vercel, Netlify, GitHub Pages</li>
+            </ul>
+          </div>
+          <div class="skill-group">
+            <h3>Practice</h3>
+            <ul>
+              <li>Mobile-first, responsive layouts</li>
+              <li>Accessible, semantic markup</li>
+              <li>Performance basics</li>
+              <li>Multilingual interfaces, including Amharic</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Projects -->
+    <section id="projects" class="section">
+      <div class="wrap">
+        <h2>Featured projects</h2>
+        <p class="section-intro">Select a project to see what it does, how it was built and where to find the code.</p>
+
+        <ul class="project-list">
+          <li class="project project-lead">
+            <button type="button" class="project-btn" data-project="tanker" aria-haspopup="dialog">
+              <span class="project-title">Amharic tanker calculator</span>
+              <span class="project-sub">Converts a dipstick reading into liters, in Amharic.</span>
+              <span class="project-tags">JavaScript, Linear interpolation, Amharic UI</span>
+            </button>
+          </li>
+          <li class="project">
+            <button type="button" class="project-btn" data-project="keno" aria-haspopup="dialog">
+              <span class="project-title">Keno demo platform</span>
+              <span class="project-sub">A demo game site with phone login and an admin dashboard.</span>
+              <span class="project-tags">React, Vite, TypeScript</span>
+            </button>
+          </li>
+          <li class="project">
+            <button type="button" class="project-btn" data-project="portfolio" aria-haspopup="dialog">
+              <span class="project-title">This portfolio</span>
+              <span class="project-sub">Responsive, themeable and built without a framework.</span>
+              <span class="project-tags">HTML5, CSS3, JavaScript</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Resume -->
+    <section id="resume" class="section section-tint">
+      <div class="wrap">
+        <div class="resume-head">
+          <h2>Resume</h2>
+          <button id="print-resume" class="btn btn-ghost" type="button">Save resume as PDF</button>
+        </div>
+
+        <div class="resume-grid">
+          <div>
+            <h3>Experience</h3>
+            <ol class="timeline">
+              <li>
+                <p class="when">2025 to present</p>
+                <p class="what">Freelance web developer</p>
+                <p class="where">Remote and local clients</p>
+                <p class="detail">Building responsive business sites and web apps. Replace this line with a result you are proud of.</p>
+              </li>
+              <li>
+                <p class="when">Year to year</p>
+                <p class="what">Your previous role</p>
+                <p class="where">Company or project</p>
+                <p class="detail">One sentence on what you built and what changed because of it.</p>
+              </li>
+            </ol>
+          </div>
+          <div>
+            <h3>Education and certificates</h3>
+            <ol class="timeline">
+              <li>
+                <p class="when">Year</p>
+                <p class="what">Your degree or program</p>
+                <p class="where">Institution</p>
+              </li>
+              <li>
+                <p class="when">Year</p>
+                <p class="what">Web development certificate</p>
+                <p class="where">Issuing organization</p>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact -->
+    <section id="contact" class="section">
+      <div class="wrap contact">
+        <h2>Let's work together</h2>
+        <p class="lead">Tell me what you need built and when you need it. I usually reply within a day.</p>
+        <ul class="contact-links">
+          <li><a href="mailto:you@example.com">you@example.com</a></li>
+          <li><a href="https://github.com/your-username" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://linkedin.com/in/your-username" target="_blank" rel="noopener">LinkedIn</a></li>
+          <li><a href="https://t.me/your_username" target="_blank" rel="noopener">Telegram</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="tibeb" role="presentation"></div>
+    <div class="wrap footer-inner">
+      <p>&copy; <span id="year">2026</span> Your Name. Built with HTML, CSS and JavaScript.</p>
+      <a href="#top">Back to top</a>
+    </div>
+  </footer>
+
+  <!-- Project modal -->
+  <dialog id="project-modal" class="modal" aria-labelledby="modal-title">
+    <div class="modal-inner">
+      <button id="modal-close" class="icon-btn modal-close" type="button" aria-label="Close project details">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+      </button>
+      <h3 id="modal-title"></h3>
+      <p id="modal-summary" class="modal-summary"></p>
+      <dl class="modal-meta">
+        <div><dt>What I built</dt><dd id="modal-built"></dd></div>
+        <div><dt>Stack</dt><dd id="modal-stack"></dd></div>
+      </dl>
+      <div class="modal-links" id="modal-links"></div>
+    </div>
+  </dialog>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
