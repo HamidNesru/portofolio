@@ -1,144 +1,14 @@
-
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  GraduationCap, Users, BookOpen, FileCheck2, MessageSquare,
-  Image as ImageIcon, LogOut, Plus, Sparkles, Send,
-  RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard,
-  Menu, ArrowRight, Award, ChevronRight,
-  Trophy, Microscope, TrendingUp
-} from "lucide-react";
+import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard, Menu, ArrowRight, Search, Trash2, Pencil, UserRound, ShieldCheck } from "lucide-react";
 import { supabase, hasSupabase } from "./supabase";
 
-type UserRole = "Admin" | "Teacher" | "Parent";
-type Page = "overview" | "students" | "exams" | "chat" | "gallery";
-
-interface StudentRecord {
-  id: string;
-  full_name: string;
-  grade: number;
-  section: string;
-  age: number;
-  ws1: number;
-  test1: number;
-  ws2: number;
-  test2: number;
-  ws3: number;
-  mid_exam: number;
-  ws4: number;
-  final_exam: number;
-}
-
-interface ExamSubmission {
-  id: string;
-  teacher_name: string;
-  subject: string;
-  grade: number;
-  exam_type: string;
-  exam_content: string;
-  ai_score: number;
-  ai_feedback: string;
-  submitted_at: string;
-}
-
-interface ChatMessage {
-  id: string;
-  sender_role: string;
-  sender_name: string;
-  student_name: string;
-  body: string;
-  created_at: string;
-}
-
-interface GalleryItem {
-  id: string;
-  title: string;
-  category: string;
-  image_url: string;
-}
-
-const SECTIONS = ["A", "B", "C", "D", "E"];
-
-const ASSESSMENTS = [
-  { key: "ws1", label: "Worksheet 1", max: 5 },
-  { key: "test1", label: "Test 1", max: 10 },
-  { key: "ws2", label: "Worksheet 2", max: 5 },
-  { key: "test2", label: "Test 2", max: 10 },
-  { key: "ws3", label: "Worksheet 3", max: 5 },
-  { key: "mid_exam", label: "Mid Exam", max: 20 },
-  { key: "ws4", label: "Worksheet 4", max: 5 },
-  { key: "final_exam", label: "Final Exam", max: 40 }
-] as const;
-
-type AssessmentKey = (typeof ASSESSMENTS)[number]["key"];
-
-const HERO_IMAGES = [
-  "/prestpro.png",
-  "/prest22.jpg",
-  "/prest23.jpg",
-  "/prest9.jpg",
-  "/prest7.jpg"
-];
-
-const EMPTY_STUDENT = {
-  full_name: "",
-  grade: 9,
-  section: "A",
-  age: 15
-};
-
-const EMPTY_EXAM = {
-  teacher_name: "",
-  subject: "",
-  grade: 9,
-  exam_type: "Final Exam (40%)",
-  exam_content: ""
-};
-
-const EMPTY_GALLERY = {
-  title: "",
-  category: "School Activity",
-  image_url: ""
-};
-
-function getTotalScore(student: StudentRecord) {
-  return ASSESSMENTS.reduce(
-    (total, assessment) => total + (Number(student[assessment.key]) || 0),
-    0
-  );
-}
-
-function safeDate(value?: string) {
-  if (!value) return "Date unavailable";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
-
-function evaluateExamQuality(subject: string, grade: number, content: string) {
-  const text = content.trim();
-  const words = text ? text.split(/\s+/).length : 0;
-  const analytical =
-    /(analyze|compare|evaluate|calculate|explain|derive|justify|discuss)/i.test(text);
-  const numbered = /(\b1[.)]|\b2[.)]|\bQ1|\bQuestion\s*1)/i.test(text);
-  const marks = /\b\d+\s*marks?\b|\[\s*\d+\s*\]/i.test(text);
-
-  let score = 55;
-  if (words >= 20) score += 10;
-  if (words >= 50) score += 10;
-  if (analytical) score += 10;
-  if (numbered) score += 5;
-  if (marks) score += 10;
-
-  return {
-    score: Math.min(score, 95),
-    feedback:
-      `Preliminary assessment for Grade ${grade} ${subject}. Word count: ${words}. ` +
-      `Analytical questions: ${analytical ? "Detected" : "Not detected"}. ` +
-      `Numbering: ${numbered ? "Detected" : "Not detected"}. ` +
-      `Mark allocation: ${marks ? "Detected" : "Not detected"}. ` +
-      "A qualified teacher should verify curriculum alignment, accuracy, difficulty and marking fairness."
-  };
-}
-
+type Profile = { id: string; email: string; full_name: string; role: string; is_active: boolean };
+type Section = { id: string; grade: number; section_name: string; academic_year_id: string };
+type Student = { id: string; admission_number: string; first_name: string; middle_name: string | null; last_name: string; date_of_birth: string | null; gender: string | null; phone: string | null; address: string | null; is_active: boolean; grade: number; section: string; enrollment_id: string | null };
+type StudentForm = { first_name: string; middle_name: string; last_name: string; date_of_birth: string; gender: string; phone: string; address: string; grade: number; section: string };
+type Page = "overview" | "students";
+const HERO_IMAGES = ["/prestpro.png", "/prest22.jpg", "/prest23.jpg", "/prest9.jpg", "/prest7.jpg"];
+const EMPTY_FORM: StudentForm = { first_name: "", middle_name: "", last_name: "", date_of_birth: "", gender: "", phone: "", address: "", grade: 9, section: "A" };
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
 
@@ -384,762 +254,173 @@ tbody tr:hover { background:#ffffff06; }
 }
 `;
 
-export default function App() {
-  const [user, setUser] = useState<{ name: string; role: UserRole } | null>(null);
-  const [showLogin, setShowLogin] = useState(false);
-  const [loginName, setLoginName] = useState("");
-  const [loginRole, setLoginRole] = useState<UserRole>("Admin");
-  const [heroIndex, setHeroIndex] = useState(0);
-  const failedHero: string[] = [];
-  const [mobileNav, setMobileNav] = useState(false);
+function fullName(s: Student) { return [s.first_name, s.middle_name, s.last_name].filter(Boolean).join(" "); }
+function ageFromDob(dob: string | null) { if (!dob) return "—"; const d = new Date(dob); if (Number.isNaN(d.getTime())) return "—"; const now = new Date(); let age = now.getFullYear() - d.getFullYear(); if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--; return age; }
 
-  const [activePage, setActivePage] = useState<Page>("overview");
-  const [selectedGrade, setSelectedGrade] = useState(9);
-  const [selectedSection, setSelectedSection] = useState("A");
-  const [students, setStudents] = useState<StudentRecord[]>([]);
-  const [exams, setExams] = useState<ExamSubmission[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function App() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [page, setPage] = useState<Page>("overview");
+  const [mobileNav, setMobileNav] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [academicYearId, setAcademicYearId] = useState("");
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [gradeFilter, setGradeFilter] = useState(9);
+  const [sectionFilter, setSectionFilter] = useState("A");
+  const [form, setForm] = useState<StudentForm>(EMPTY_FORM);
+  const [editing, setEditing] = useState<Student | null>(null);
 
-  const [newStudent, setNewStudent] = useState(EMPTY_STUDENT);
-  const [examForm, setExamForm] = useState(EMPTY_EXAM);
-  const [chatInput, setChatInput] = useState("");
-  const [chatStudentRef, setChatStudentRef] = useState("");
-  const [galleryForm, setGalleryForm] = useState(EMPTY_GALLERY);
+  const notify = (s: string) => { setNotice(s); setError(""); };
+  const fail = (s: string) => { setError(s); setNotice(""); };
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setHeroIndex(index => (index + 1) % HERO_IMAGES.length);
-    }, 5500);
-    return () => window.clearInterval(timer);
-  }, []);
+  useEffect(() => { const timer = window.setInterval(() => setHeroIndex(i => (i + 1) % HERO_IMAGES.length), 5500); return () => window.clearInterval(timer); }, []);
 
-  const notify = (message: string) => {
-    setNotice(message);
-    setError("");
-  };
-
-  const reportError = (message: string) => {
-    setError(message);
-    setNotice("");
-  };
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
-    if (!hasSupabase || !supabase) {
-      reportError(
-        "Supabase is not configured. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel environment variables."
-      );
-      setLoading(false);
-      return;
-    }
-
+  const loadSchoolData = useCallback(async () => {
+    if (!supabase || !hasSupabase) { fail("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Vercel environment variables."); return; }
+    setLoading(true); setError("");
     try {
-      const results = await Promise.all([
-        supabase.from("students").select("*").order("full_name"),
-        supabase.from("exams").select("*").order("submitted_at", { ascending: false }),
-        supabase.from("messages").select("*").order("created_at"),
-        supabase.from("gallery").select("*").order("created_at", { ascending: false })
+      const yearRes = await supabase.from("school_academic_years").select("id,name").eq("is_current", true).maybeSingle();
+      if (yearRes.error) throw yearRes.error;
+      if (!yearRes.data) throw new Error("No current academic year is configured. Set 2026/2027 as the current year in school_academic_years.");
+      setAcademicYearId(yearRes.data.id);
+      const [sectionRes, studentRes] = await Promise.all([
+        supabase.from("school_sections").select("id,grade,section_name,academic_year_id").eq("academic_year_id", yearRes.data.id).order("grade").order("section_name"),
+        supabase.from("school_students").select("id,admission_number,first_name,middle_name,last_name,date_of_birth,gender,phone,address,is_active").order("last_name").order("first_name")
       ]);
-
-      const labels = ["Students", "Exams", "Messages", "Gallery"];
-      const errors: string[] = [];
-
-      results.forEach((result, index) => {
-        if (result.error) {
-          console.error(`${labels[index]} loading error:`, result.error);
-          errors.push(`${labels[index]}: ${result.error.message}`);
-        }
+      if (sectionRes.error) throw sectionRes.error;
+      if (studentRes.error) throw studentRes.error;
+      const sectionRows = (sectionRes.data || []) as Section[];
+      setSections(sectionRows);
+      const studentRows = studentRes.data || [];
+      const ids = studentRows.map((s: any) => s.id);
+      let enrollmentRows: any[] = [];
+      if (ids.length) {
+        const enrollRes = await supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", yearRes.data.id).in("student_id", ids);
+        if (enrollRes.error) throw enrollRes.error;
+        enrollmentRows = enrollRes.data || [];
+      }
+      const mapped: Student[] = studentRows.map((s: any) => {
+        const enrollment = enrollmentRows.find(e => e.student_id === s.id);
+        const section = sectionRows.find(sec => sec.id === enrollment?.section_id);
+        return { ...s, grade: section?.grade ?? 0, section: section?.section_name ?? "—", enrollment_id: enrollment?.id ?? null };
       });
-
-      if (results[0].data) setStudents(results[0].data as StudentRecord[]);
-      if (results[1].data) setExams(results[1].data as ExamSubmission[]);
-      if (results[2].data) setMessages(results[2].data as ChatMessage[]);
-      if (results[3].data) setGallery(results[3].data as GalleryItem[]);
-
-      if (errors.length > 0) reportError(errors.join(" | "));
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Unable to load school records.");
-    } finally {
-      setLoading(false);
-    }
+      setStudents(mapped);
+    } catch (e) { fail(e instanceof Error ? e.message : "Unable to load school records."); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
-  const filteredStudents = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return students.filter(student =>
-      Number(student.grade) === selectedGrade &&
-      student.section === selectedSection &&
-      String(student.full_name || "").toLowerCase().includes(query)
-    );
-  }, [students, selectedGrade, selectedSection, search]);
-
-  const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    if (!newStudent.full_name.trim()) return reportError("Enter the student's full name.");
-    if (newStudent.grade < 1 || newStudent.grade > 12) return reportError("Choose a grade from 1 to 12.");
-    if (!SECTIONS.includes(newStudent.section)) return reportError("Choose a valid section.");
-    if (newStudent.age < 5 || newStudent.age > 25) return reportError("Student age must be between 5 and 25.");
-
-    const count = students.filter(s =>
-      Number(s.grade) === Number(newStudent.grade) && s.section === newStudent.section
-    ).length;
-
-    if (count >= 40) return reportError("This section already contains 40 students.");
-    if (!supabase || !hasSupabase) return reportError("Supabase is not configured.");
-
-    const record = {
-      ...newStudent,
-      full_name: newStudent.full_name.trim(),
-      grade: Number(newStudent.grade),
-      age: Number(newStudent.age),
-      ws1: 0, test1: 0, ws2: 0, test2: 0,
-      ws3: 0, mid_exam: 0, ws4: 0, final_exam: 0
+    if (!supabase || !hasSupabase) { setSessionReady(true); return; }
+    let alive = true;
+    const verify = async (uid: string | undefined) => {
+      if (!uid) { if (alive) { setProfile(null); setSessionReady(true); } return; }
+      const { data, error: profileError } = await supabase!.from("school_profiles").select("id,email,full_name,role,is_active").eq("id", uid).maybeSingle();
+      if (!alive) return;
+      if (profileError || !data || !data.is_active || data.role !== "admin") {
+        await supabase!.auth.signOut(); setProfile(null);
+        fail(profileError?.message || "This account does not have an active school administrator profile.");
+      } else { setProfile(data as Profile); }
+      setSessionReady(true);
     };
+    supabase.auth.getSession().then(({ data }) => { void verify(data.session?.user.id); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { void verify(session?.user.id); });
+    return () => { alive = false; listener.subscription.unsubscribe(); };
+  }, []);
 
+  useEffect(() => { if (profile) void loadSchoolData(); }, [profile, loadSchoolData]);
+
+  const filteredStudents = useMemo(() => students.filter(s => s.grade === gradeFilter && s.section === sectionFilter && `${fullName(s)} ${s.admission_number}`.toLowerCase().includes(search.toLowerCase())), [students, gradeFilter, sectionFilter, search]);
+
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!supabase || !hasSupabase) return fail("Supabase is not configured.");
+    setBusy(true); setError("");
+    try { const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); if (authError) throw authError; setShowLogin(false); setPassword(""); }
+    catch (e) { fail(e instanceof Error ? e.message : "Sign-in failed."); }
+    finally { setBusy(false); }
+  };
+
+  const signOut = async () => { if (!supabase) return; await supabase.auth.signOut(); setProfile(null); setPage("overview"); notify("You have signed out."); };
+
+  const saveStudent = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!supabase || !profile || !academicYearId) return fail("Administrator session or current academic year is missing.");
+    if (!form.first_name.trim() || !form.last_name.trim()) return fail("First name and last name are required.");
+    const section = sections.find(s => s.grade === Number(form.grade) && s.section_name === form.section);
+    if (!section) return fail("The selected class section was not found for the current academic year.");
+    setBusy(true); setError("");
+    try {
+      if (editing) {
+        const update = { first_name: form.first_name.trim(), middle_name: form.middle_name.trim() || null, last_name: form.last_name.trim(), date_of_birth: form.date_of_birth || null, gender: form.gender || null, phone: form.phone.trim() || null, address: form.address.trim() || null };
+        const { error: updateError } = await supabase.from("school_students").update(update).eq("id", editing.id);
+        if (updateError) throw updateError;
+        if (editing.enrollment_id) {
+          const { error: enrollmentError } = await supabase.from("school_enrollments").update({ section_id: section.id, academic_year_id: academicYearId }).eq("id", editing.enrollment_id);
+          if (enrollmentError) throw enrollmentError;
+        } else {
+          const { error: enrollmentError } = await supabase.from("school_enrollments").insert({ student_id: editing.id, section_id: section.id, academic_year_id: academicYearId });
+          if (enrollmentError) throw enrollmentError;
+        }
+        notify("Student information and class allocation updated.");
+      } else {
+        const admission = `PYA-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+        const { data: created, error: insertError } = await supabase.from("school_students").insert({ admission_number: admission, first_name: form.first_name.trim(), middle_name: form.middle_name.trim() || null, last_name: form.last_name.trim(), date_of_birth: form.date_of_birth || null, gender: form.gender || null, phone: form.phone.trim() || null, address: form.address.trim() || null, is_active: true }).select("id").single();
+        if (insertError) throw insertError;
+        const { error: enrollmentError } = await supabase.from("school_enrollments").insert({ student_id: created.id, section_id: section.id, academic_year_id: academicYearId });
+        if (enrollmentError) {
+          await supabase.from("school_students").delete().eq("id", created.id);
+          throw enrollmentError;
+        }
+        notify(`Student registered successfully. Admission number: ${admission}`);
+      }
+      setForm({ ...EMPTY_FORM, grade: Number(form.grade), section: form.section }); setEditing(null); setGradeFilter(Number(form.grade)); setSectionFilter(form.section); await loadSchoolData();
+    } catch (e) { fail(e instanceof Error ? e.message : "Unable to save student."); }
+    finally { setBusy(false); }
+  };
+
+  const beginEdit = (student: Student) => { setEditing(student); setForm({ first_name: student.first_name, middle_name: student.middle_name || "", last_name: student.last_name, date_of_birth: student.date_of_birth || "", gender: student.gender || "", phone: student.phone || "", address: student.address || "", grade: student.grade || 9, section: student.section === "—" ? "A" : student.section }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+  const removeStudent = async (student: Student) => {
+    if (!supabase || !window.confirm(`Deactivate ${fullName(student)} (${student.admission_number})? Their historical records will be preserved.`)) return;
     setBusy(true);
     try {
-      const { data, error: dbError } = await supabase.from("students").insert([record]).select().single();
-      if (dbError) throw dbError;
-      setStudents(previous => [...previous, data as StudentRecord]);
-      setSelectedGrade(record.grade);
-      setSelectedSection(record.section);
-      setNewStudent({ ...EMPTY_STUDENT, grade: record.grade, section: record.section });
-      notify("Student successfully registered.");
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Student registration failed.");
-    } finally {
-      setBusy(false);
-    }
+      // Keep the student's historical record intact; deactivate the account instead of hard-deleting it.
+      const { error: studentError } = await supabase.from("school_students").update({ is_active: false }).eq("id", student.id);
+      if (studentError) throw studentError;
+      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, is_active: false } : s));
+      notify("Student deactivated. Historical academic records have been preserved.");
+    } catch (e) { fail(e instanceof Error ? e.message : "Unable to remove student."); }
+    finally { setBusy(false); }
   };
 
-  const handleUpdateMark = async (student: StudentRecord, key: AssessmentKey, value: number) => {
-    const assessment = ASSESSMENTS.find(item => item.key === key);
-    if (!assessment || !Number.isFinite(value) || value < 0 || value > assessment.max) {
-      reportError(`Enter a mark between 0 and ${assessment?.max ?? 0}.`);
-      return false;
-    }
-    if (!supabase || !hasSupabase) {
-      reportError("Supabase is not configured.");
-      return false;
-    }
+  if (!sessionReady) return <div className="pya-app"><style>{CSS}</style><div style={{ minHeight: "100vh", display: "grid", placeItems: "center", color: "#d9b45b" }}>Loading secure school portal…</div></div>;
 
-    try {
-      const { error: dbError } = await supabase.from("students").update({ [key]: value }).eq("id", student.id);
-      if (dbError) throw dbError;
-      setStudents(previous => previous.map(item =>
-        item.id === student.id ? { ...item, [key]: value } : item
-      ));
-      notify(`${assessment.label} mark updated.`);
-      return true;
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Unable to update mark.");
-      return false;
-    }
-  };
+  if (!profile) return <div className="pya-app"><style>{CSS}</style><div className="landing">
+    <nav className="landing-nav"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name">PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div><button className="outline-button" onClick={() => setShowLogin(true)}>ADMIN SIGN IN</button></nav>
+    <section className="hero"><div className="hero-photo" style={{ backgroundImage: `url("${HERO_IMAGES[heroIndex]}")`, opacity: 1 }}/><div className="hero-shade"/><div className="hero-content"><div className="hero-kicker">A LEGACY OF LEARNING AND LEADERSHIP</div><h1 className="serif">Inspiring Minds.<span className="gold-text">Building Futures.</span></h1><p className="hero-desc">Welcome to Prestigious Youth Academy — a community committed to academic excellence, creativity, character and the limitless potential of every learner.</p><div className="hero-actions"><button className="gold-button" onClick={() => setShowLogin(true)}>ENTER SCHOOL PORTAL <ArrowRight size={15} style={{ display: "inline", marginLeft: 8 }}/></button><a className="outline-button" href="#our-school" style={{ textDecoration: "none" }}>EXPLORE OUR ACADEMY</a></div></div><div className="hero-bottom"><div className="eyebrow">PRESTIGIOUS YOUTH ACADEMY • 2026/2027</div><div className="hero-dots">{HERO_IMAGES.map((im,i)=><button key={im} className={`hero-dot ${heroIndex===i?"active":""}`} onClick={()=>setHeroIndex(i)} aria-label={`Show image ${i+1}`}/>)}</div></div></section>
+    <section className="landing-section" id="our-school"><div className="eyebrow">THE PRESTIGIOUS EXPERIENCE</div><h2 className="section-heading">More Than a School.<br/><span className="gold-text">A Place to Become.</span></h2><p className="muted" style={{maxWidth:650,lineHeight:1.9,fontSize:14}}>We nurture curiosity, strengthen academic foundations and create opportunities for students to discover their talents, develop confidence and prepare for tomorrow.</p><div className="feature-grid"><article className="feature-card"><div className="feature-icon"><TrophyIcon/></div><h3>Academic Excellence</h3><p>Meaningful learning, strong foundations and a culture of achievement.</p></article><article className="feature-card"><div className="feature-icon"><BookOpen/></div><h3>Discovery & Innovation</h3><p>Science, technology and practical learning that bring ideas to life.</p></article><article className="feature-card"><div className="feature-icon"><ShieldCheck/></div><h3>Character & Leadership</h3><p>Respect, responsibility, teamwork and the confidence to lead.</p></article></div></section>
+    <section className="landing-section" style={{paddingTop:15,background:"#0d0f0e"}}><div className="eyebrow">LIFE AT OUR ACADEMY</div><h2 className="section-heading">Learning in <span className="gold-text">Action.</span></h2><div className="activity-strip">{HERO_IMAGES.slice(1).map((im,i)=><div className="activity-tile" key={im}><img src={im} alt="Academy activities"/><span>{["Student Activities","Learning Together","School Community","Beyond the Classroom"][i]}</span></div>)}</div></section><footer className="landing-footer"><span className="gold-text">PRESTIGIOUS YOUTH ACADEMY</span><span>Excellence • Discipline • Leadership</span><span>Academic Year 2026/2027</span></footer>
+    {showLogin && <div className="login-overlay" onClick={()=>setShowLogin(false)}><div className="login-card" onClick={e=>e.stopPropagation()}><button onClick={()=>setShowLogin(false)} style={{float:"right",background:"none",border:0,color:"#aaa"}}><X/></button><div style={{textAlign:"center",padding:"10px 0 25px"}}><div className="brand-mark" style={{margin:"0 auto 15px",width:58,height:58}}><GraduationCap size={34}/></div><div className="eyebrow">SECURE ADMINISTRATOR ACCESS</div><h2 className="serif gold-text" style={{fontSize:28,margin:"9px 0"}}>School Portal</h2><p className="muted" style={{fontSize:11}}>Sign in with your registered administrator email and password.</p></div><form onSubmit={signIn}><label className="small-label">ADMIN EMAIL</label><input className="login-input" type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@example.com"/><div style={{marginTop:16}}><label className="small-label">PASSWORD</label><input className="login-input" type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"/></div><button className="gold-button" disabled={busy} style={{width:"100%",marginTop:24}}>{busy?"SIGNING IN…":"SIGN IN SECURELY"}</button></form><p style={{color:"#77786f",fontSize:10,lineHeight:1.7,textAlign:"center",marginTop:18}}>Access is controlled by the administrator role in the school database.</p></div></div>}
+    {(error||notice)&&<div style={{position:"fixed",bottom:15,left:15,right:15,zIndex:1000}} className={`notice ${error?"error":"success"}`}>{error||notice}<button onClick={()=>{setError("");setNotice("")}}><X size={15}/></button></div>}
+  </div></div>;
 
-  const handleExamSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!examForm.subject.trim() || !examForm.exam_content.trim()) return reportError("Enter the subject and exam questions.");
-    if (!supabase || !hasSupabase) return reportError("Supabase is not configured.");
-
-    const evaluation = evaluateExamQuality(examForm.subject, Number(examForm.grade), examForm.exam_content);
-    const submission = {
-      teacher_name: examForm.teacher_name.trim() || user?.name || "Teacher",
-      subject: examForm.subject.trim(),
-      grade: Number(examForm.grade),
-      exam_type: examForm.exam_type,
-      exam_content: examForm.exam_content.trim(),
-      ai_score: evaluation.score,
-      ai_feedback: evaluation.feedback,
-      submitted_at: new Date().toISOString()
-    };
-
-    setBusy(true);
-    try {
-      const { data, error: dbError } = await supabase.from("exams").insert([submission]).select().single();
-      if (dbError) throw dbError;
-      setExams(previous => [data as ExamSubmission, ...previous]);
-      setExamForm({ ...EMPTY_EXAM, teacher_name: user?.name || "" });
-      notify("Examination submitted successfully.");
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Exam submission failed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !chatStudentRef.trim()) return reportError("Enter a student reference and message.");
-    if (!supabase || !hasSupabase) return reportError("Supabase is not configured.");
-
-    const record = {
-      sender_role: user?.role || "Parent",
-      sender_name: user?.name || "User",
-      student_name: chatStudentRef.trim(),
-      body: chatInput.trim(),
-      created_at: new Date().toISOString()
-    };
-
-    setBusy(true);
-    try {
-      const { data, error: dbError } = await supabase.from("messages").insert([record]).select().single();
-      if (dbError) throw dbError;
-      setMessages(previous => [...previous, data as ChatMessage]);
-      setChatInput("");
-      notify("Message sent successfully.");
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Message could not be sent.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleAddGalleryItem = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!galleryForm.title.trim() || !galleryForm.image_url.trim()) return reportError("Enter an event title and image URL.");
-
-    try {
-      const url = new URL(galleryForm.image_url.trim());
-      if (!["http:", "https:"].includes(url.protocol)) throw new Error();
-    } catch {
-      return reportError("Enter a valid HTTP or HTTPS image URL.");
-    }
-
-    if (!supabase || !hasSupabase) return reportError("Supabase is not configured.");
-
-    setBusy(true);
-    try {
-      const { data, error: dbError } = await supabase.from("gallery").insert([{
-        title: galleryForm.title.trim(),
-        category: galleryForm.category.trim() || "School Activity",
-        image_url: galleryForm.image_url.trim()
-      }]).select().single();
-
-      if (dbError) throw dbError;
-      setGallery(previous => [data as GalleryItem, ...previous]);
-      setGalleryForm(EMPTY_GALLERY);
-      notify("Gallery item added.");
-    } catch (err) {
-      reportError(err instanceof Error ? err.message : "Gallery item could not be added.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: "Overview", icon: <LayoutDashboard size={17} /> },
-    { id: "students", label: "Students & Marks", icon: <Users size={17} /> },
-    { id: "exams", label: "Examination Board", icon: <FileCheck2 size={17} /> },
-    { id: "chat", label: "Parent Communication", icon: <MessageSquare size={17} /> },
-    { id: "gallery", label: "School Gallery", icon: <ImageIcon size={17} /> }
-  ];
-
-  const pageTitle = navItems.find(item => item.id === activePage)?.label || "Overview";
-
-  const changePage = (page: Page) => {
-    setActivePage(page);
-    setMobileNav(false);
-  };
-
-  const statCards = [
-    { label: "Enrolled Students", value: students.length, icon: <Users size={18} />, note: "Registered student records" },
-    { label: "Examinations", value: exams.length, icon: <FileCheck2 size={18} />, note: "Teacher submissions" },
-    { label: "Messages", value: messages.length, icon: <MessageSquare size={18} />, note: "Parent & teacher messages" },
-    { label: "Activities", value: gallery.length, icon: <ImageIcon size={18} />, note: "Published gallery entries" }
-  ];
-
-  if (!user) {
-    return (
-      <div className="pya-app">
-        <style>{CSS}</style>
-        <div className="landing">
-          <header className="landing-nav">
-            <div className="brand">
-              <div className="brand-mark"><GraduationCap size={27} /></div>
-              <div>
-                <div className="brand-name">PRESTIGIOUS YOUTH ACADEMY</div>
-                <div className="brand-sub">EXCELLENCE • DISCIPLINE • LEADERSHIP</div>
-              </div>
-            </div>
-            <button className="gold-button" onClick={() => setShowLogin(true)}>PORTAL LOGIN <ArrowRight size={14} style={{ display: "inline", marginLeft: 7 }} /></button>
-          </header>
-
-          <section className="hero">
-            {HERO_IMAGES.map((src, index) => (
-              <div
-                key={src}
-                className="hero-photo"
-                style={{
-                  backgroundImage: failedHero.includes(src) ? "none" : `url("${src}")`,
-                  opacity: heroIndex === index && !failedHero.includes(src) ? 1 : 0
-                }}
-              />
-            ))}
-            <div className="hero-shade" />
-            <div className="hero-content">
-              <div className="hero-kicker">A LEGACY OF LEARNING AND LEADERSHIP</div>
-              <h1 className="serif">
-                Inspiring Minds.
-                <span className="gold-text">Building Futures.</span>
-              </h1>
-              <p className="hero-desc">
-                Welcome to Prestigious Youth Academy — a community committed to
-                academic excellence, creativity, character and the limitless
-                potential of every learner.
-              </p>
-              <div className="hero-actions">
-                <button className="gold-button" onClick={() => setShowLogin(true)}>
-                  ENTER SCHOOL PORTAL <ArrowRight size={15} style={{ display: "inline", marginLeft: 8 }} />
-                </button>
-                <a className="outline-button" href="#our-school" style={{ textDecoration: "none" }}>
-                  EXPLORE OUR ACADEMY
-                </a>
-              </div>
-            </div>
-            <div className="hero-bottom">
-              <div className="eyebrow">PRESTIGIOUS YOUTH ACADEMY • 2026/2027</div>
-              <div className="hero-dots">
-                {HERO_IMAGES.map((src, index) => (
-                  <button
-                    key={src}
-                    className={`hero-dot ${heroIndex === index ? "active" : ""}`}
-                    onClick={() => setHeroIndex(index)}
-                    aria-label={`Show image ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-          </section>
-
-          <section className="landing-section" id="our-school">
-            <div className="eyebrow">THE PRESTIGIOUS EXPERIENCE</div>
-            <h2 className="section-heading">More Than a School.<br /><span className="gold-text">A Place to Become.</span></h2>
-            <p className="muted" style={{ maxWidth: 650, lineHeight: 1.9, fontSize: 14 }}>
-              We nurture curiosity, strengthen academic foundations and create
-              opportunities for students to discover their talents, develop
-              confidence and prepare for tomorrow.
-            </p>
-
-            <div className="feature-grid">
-              <article className="feature-card">
-                <div className="feature-icon"><Trophy size={29} /></div>
-                <h3>Academic Excellence</h3>
-                <p>Meaningful learning, strong foundations and a culture of achievement.</p>
-              </article>
-              <article className="feature-card">
-                <div className="feature-icon"><Microscope size={29} /></div>
-                <h3>Discovery & Innovation</h3>
-                <p>Science, technology and practical learning that bring ideas to life.</p>
-              </article>
-              <article className="feature-card">
-                <div className="feature-icon"><Award size={29} /></div>
-                <h3>Character & Leadership</h3>
-                <p>Respect, responsibility, teamwork and the confidence to lead.</p>
-              </article>
-            </div>
-          </section>
-
-          <section className="landing-section" style={{ paddingTop: 15, background: "#0d0f0e" }}>
-            <div className="eyebrow">LIFE AT OUR ACADEMY</div>
-            <h2 className="section-heading">Learning in <span className="gold-text">Action.</span></h2>
-            <p className="muted" style={{ fontSize: 13, lineHeight: 1.8 }}>
-              Exploring, creating, competing and growing together.
-            </p>
-            <div className="activity-strip">
-              {[
-                { src: "/prest22.jpg", label: "Student Activities" },
-                { src: "/prest23.jpg", label: "Learning Together" },
-                { src: "/prest9.jpg", label: "School Community" },
-                { src: "/prest7.jpg", label: "Beyond the Classroom" }
-              ].map(item => (
-                <div className="activity-tile" key={item.src}>
-                  <img src={item.src} alt={item.label} onError={e => { e.currentTarget.style.visibility = "hidden"; }} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <footer className="landing-footer">
-            <span className="gold-text" style={{ fontWeight: 800, letterSpacing: 2 }}>PRESTIGIOUS YOUTH ACADEMY</span>
-            <span>Excellence • Discipline • Leadership</span>
-            <span>Academic Year 2026/2027</span>
-          </footer>
-        </div>
-
-        {showLogin && (
-          <div className="login-overlay" onClick={() => setShowLogin(false)}>
-            <div className="login-card" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setShowLogin(false)} style={{ float: "right", background: "none", border: 0, color: "#aaa" }} aria-label="Close"><X size={21} /></button>
-              <div style={{ textAlign: "center", padding: "10px 0 25px" }}>
-                <div className="brand-mark" style={{ margin: "0 auto 15px", width: 58, height: 58 }}><GraduationCap size={34} /></div>
-                <div className="eyebrow">WELCOME BACK</div>
-                <h2 className="serif gold-text" style={{ fontSize: 28, margin: "9px 0" }}>School Portal</h2>
-                <p className="muted" style={{ fontSize: 11 }}>Access the academy management workspace</p>
-              </div>
-              <form onSubmit={e => {
-                e.preventDefault();
-                if (!loginName.trim()) return;
-                setUser({ name: loginName.trim(), role: loginRole });
-                setShowLogin(false);
-              }}>
-                <label className="small-label">FULL NAME</label>
-                <input className="login-input" required value={loginName} onChange={e => setLoginName(e.target.value)} placeholder="Enter your name" />
-                <div style={{ marginTop: 22 }}>
-                  <label className="small-label">SELECT YOUR PORTAL</label>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                    {(["Admin", "Teacher", "Parent"] as UserRole[]).map(role => (
-                      <button type="button" key={role} onClick={() => setLoginRole(role)} className={`role-choice ${loginRole === role ? "selected" : ""}`}>{role}</button>
-                    ))}
-                  </div>
-                </div>
-                <button className="gold-button" type="submit" style={{ width: "100%", marginTop: 24 }}>CONTINUE TO PORTAL <ArrowRight size={15} style={{ display: "inline", marginLeft: 8 }} /></button>
-              </form>
-              <p style={{ color: "#77786f", fontSize: 10, lineHeight: 1.7, textAlign: "center", marginTop: 22 }}>
-                Demonstration sign-in. Connect Supabase Authentication and enforce database permissions before using real student records.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="pya-app">
-      <style>{CSS}</style>
-      <div className="portal">
-        <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-          <div className="side-brand">
-            <div className="brand">
-              <div className="brand-mark"><GraduationCap size={25} /></div>
-              <div>
-                <div className="brand-name" style={{ fontSize: 10 }}>PRESTIGIOUS</div>
-                <div className="brand-sub">YOUTH ACADEMY</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="side-label">MAIN WORKSPACE</div>
-          {navItems.map(item => (
-            <button key={item.id} onClick={() => changePage(item.id)} className={`side-link ${activePage === item.id ? "active" : ""}`}>
-              {item.icon}<span>{item.label}</span>
-              {activePage === item.id && <ChevronRight size={14} style={{ marginLeft: "auto" }} />}
-            </button>
-          ))}
-
-          <div className="side-label">ACADEMIC YEAR</div>
-          <div style={{ margin: "0 8px", padding: 13, background: "#ffffff08", border: "1px solid #ffffff12", borderRadius: 8 }}>
-            <div style={{ color: "#e4c77d", fontSize: 12, fontWeight: 800 }}>2026 / 2027</div>
-            <div style={{ color: "#77786f", fontSize: 10, marginTop: 5 }}>Academic session</div>
-          </div>
-
-          <div className="side-bottom">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 8px 15px" }}>
-              <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis" }}>{user.name}</div>
-                <div style={{ color: "#d4b45f", fontSize: 10, marginTop: 3 }}>{user.role} account</div>
-              </div>
-            </div>
-            <button className="side-link" onClick={() => { setUser(null); setActivePage("overview"); }}>
-              <LogOut size={17} /> Sign out
-            </button>
-          </div>
-        </aside>
-
-        <div className="portal-main">
-          <header className="topbar">
-            <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-              <button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)}><Menu size={19} /></button>
-              <div>
-                <div className="eyebrow" style={{ fontSize: 8 }}>PRESTIGIOUS YOUTH ACADEMY</div>
-                <div style={{ fontSize: 13, fontWeight: 800, marginTop: 4 }}>{pageTitle}</div>
-              </div>
-            </div>
-            <div className="topbar-user">
-              <button onClick={() => void loadData()} title="Refresh records" style={{ border: "1px solid var(--line)", color: "#dfc579", background: "#ffffff06", padding: 9, borderRadius: 7 }}>
-                <RefreshCw size={15} />
-              </button>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, fontWeight: 800 }}>{user.name}</div>
-                <div style={{ fontSize: 9, color: "#d9b45b", marginTop: 3 }}>{user.role}</div>
-              </div>
-              <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
-            </div>
-          </header>
-
-          <main className="content">
-            {(error || notice) && (
-              <div className={`notice ${error ? "error" : "success"}`}>
-                <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                  {error ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />}
-                  {error || notice}
-                </span>
-                <button onClick={() => { setError(""); setNotice(""); }} style={{ background: "none", border: 0, color: "inherit" }}><X size={16} /></button>
-              </div>
-            )}
-
-            {activePage === "overview" && (
-              <>
-                <section className="welcome-banner">
-                  <div className="eyebrow">EXECUTIVE WORKSPACE</div>
-                  <h1 className="serif" style={{ fontSize: "clamp(27px,4vw,39px)", margin: "12px 0 8px" }}>
-                    Welcome, <span className="gold-text">{user.name}</span>
-                  </h1>
-                  <p style={{ color: "#aaa99e", fontSize: 12, lineHeight: 1.8, maxWidth: 570, margin: 0 }}>
-                    Your academy at a glance. Manage academic records, review examinations,
-                    connect with families and celebrate student activities.
-                  </p>
-                  <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 20 }}>
-                    <button className="gold-button" onClick={() => changePage("students")}>MANAGE STUDENTS <ArrowRight size={13} style={{ display: "inline", marginLeft: 6 }} /></button>
-                    <button className="outline-button" onClick={() => changePage("exams")}>EXAMINATION BOARD</button>
-                  </div>
-                </section>
-
-                <div className="eyebrow">ACADEMY AT A GLANCE</div>
-                <div className="stats-grid">
-                  {statCards.map(item => (
-                    <div className="stat-card" key={item.label}>
-                      <div className="stat-top"><span>{item.label}</span><span className="stat-icon">{item.icon}</span></div>
-                      <div className="stat-value">{loading ? "—" : item.value.toLocaleString()}</div>
-                      <div className="stat-note">{item.note}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="panel-grid">
-                  <section className="panel">
-                    <h3 className="panel-title">Academic Structure</h3>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-                      {[
-                        ["12", "Grades"],
-                        ["60", "Sections"],
-                        ["2,400", "Capacity"]
-                      ].map(([value, label]) => (
-                        <div key={label} style={{ background: "#ffffff06", padding: 15, borderRadius: 8, textAlign: "center" }}>
-                          <div className="gold-text" style={{ fontSize: 25, fontWeight: 900 }}>{value}</div>
-                          <div className="muted" style={{ fontSize: 10, marginTop: 5 }}>{label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="muted" style={{ fontSize: 11, lineHeight: 1.8, marginTop: 18 }}>
-                      Grades 1–12 • Sections A–E • Maximum 40 students per section.
-                    </p>
-                  </section>
-                  <section className="panel">
-                    <h3 className="panel-title">Latest Examination Submissions</h3>
-                    {exams.slice(0, 4).map(exam => (
-                      <div key={exam.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderBottom: "1px solid #292b25" }}>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 700 }}>{exam.subject} • Grade {exam.grade}</div>
-                          <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>{exam.teacher_name}</div>
-                        </div>
-                        <div className="gold-text" style={{ fontWeight: 900 }}>{exam.ai_score}/100</div>
-                      </div>
-                    ))}
-                    {exams.length === 0 && <p className="muted" style={{ fontSize: 12 }}>No examinations submitted yet.</p>}
-                    <button className="outline-button" style={{ marginTop: 15, fontSize: 10 }} onClick={() => changePage("exams")}>OPEN EXAM BOARD →</button>
-                  </section>
-                </div>
-
-                <section className="panel" style={{ marginTop: 16 }}>
-                  <h3 className="panel-title">Assessment Weighting</h3>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(115px,1fr))", gap: 9 }}>
-                    {ASSESSMENTS.map(item => (
-                      <div key={item.key} style={{ background: "#ffffff06", borderRadius: 7, padding: 12 }}>
-                        <div className="muted" style={{ fontSize: 10 }}>{item.label}</div>
-                        <div className="gold-text" style={{ fontSize: 22, fontWeight: 900, marginTop: 5 }}>{item.max}%</div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </>
-            )}
-
-            {activePage === "students" && (
-              <>
-                <div style={{ marginBottom: 20 }}>
-                  <div className="eyebrow">ACADEMIC RECORDS</div>
-                  <h1 className="page-title" style={{ marginTop: 9 }}>Student Management</h1>
-                  <p className="page-sub">Registration, class allocation and continuous assessment records.</p>
-                </div>
-
-                <div className="stats-grid">
-                  <div className="stat-card"><div className="stat-top">Total Students <Users size={17} color="#d9b45b" /></div><div className="stat-value">{students.length}</div><div className="stat-note">Across all grades</div></div>
-                  <div className="stat-card"><div className="stat-top">Grade Levels <BookOpen size={17} color="#d9b45b" /></div><div className="stat-value">12</div><div className="stat-note">Grade 1 through 12</div></div>
-                  <div className="stat-card"><div className="stat-top">Class Sections <LayoutDashboard size={17} color="#d9b45b" /></div><div className="stat-value">60</div><div className="stat-note">Five sections per grade</div></div>
-                  <div className="stat-card"><div className="stat-top">School Capacity <TrendingUp size={17} color="#d9b45b" /></div><div className="stat-value">2,400</div><div className="stat-note">Maximum planned enrollment</div></div>
-                </div>
-
-                <section className="panel" style={{ marginBottom: 16 }}>
-                  <h3 className="panel-title"><Plus size={17} style={{ display: "inline", marginRight: 8 }} />Register a Student</h3>
-                  <form onSubmit={handleAddStudent} className="form-grid">
-                    <div><label className="small-label">STUDENT FULL NAME</label><input className="field" required placeholder="Enter full name" value={newStudent.full_name} onChange={e => setNewStudent({ ...newStudent, full_name: e.target.value })} /></div>
-                    <div><label className="small-label">AGE</label><input className="field" type="number" min="5" max="25" required value={newStudent.age} onChange={e => setNewStudent({ ...newStudent, age: Number(e.target.value) })} /></div>
-                    <div><label className="small-label">GRADE</label><select className="field" value={newStudent.grade} onChange={e => setNewStudent({ ...newStudent, grade: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => i + 1).map(g => <option key={g} value={g}>Grade {g}</option>)}</select></div>
-                    <div><label className="small-label">SECTION</label><select className="field" value={newStudent.section} onChange={e => setNewStudent({ ...newStudent, section: e.target.value })}>{SECTIONS.map(s => <option key={s} value={s}>Section {s}</option>)}</select></div>
-                    <div className="full"><button className="gold-button" disabled={busy}>{busy ? "SAVING..." : "REGISTER STUDENT +"}</button></div>
-                  </form>
-                </section>
-
-                <section className="panel">
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center", marginBottom: 17 }}>
-                    <h3 className="panel-title" style={{ margin: 0 }}>Class Register & Marks</h3>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <select className="field" style={{ width: 115 }} value={selectedGrade} onChange={e => setSelectedGrade(Number(e.target.value))}>{Array.from({ length: 12 }, (_, i) => i + 1).map(g => <option key={g} value={g}>Grade {g}</option>)}</select>
-                      <input className="field" style={{ width: 160 }} placeholder="Search student..." value={search} onChange={e => setSearch(e.target.value)} />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 7, marginBottom: 16 }}>
-                    {SECTIONS.map(s => <button key={s} className={selectedSection === s ? "gold-button" : "outline-button"} style={{ padding: "8px 15px", fontSize: 11 }} onClick={() => setSelectedSection(s)}>{s}</button>)}
-                  </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead><tr><th>Student</th><th>Age</th>{ASSESSMENTS.map(a => <th key={a.key}>{a.label} ({a.max})</th>)}<th>Total /100</th></tr></thead>
-                      <tbody>
-                        {filteredStudents.map(student => <tr key={student.id}>
-                          <td style={{ fontWeight: 800, color: "#f0e8d4" }}>{student.full_name}</td>
-                          <td>{student.age}</td>
-                          {ASSESSMENTS.map(a => <td key={a.key}>
-                            <input className="table-input" type="number" min="0" max={a.max} step="0.5" defaultValue={student[a.key]} onBlur={e => {
-                              const value = Number(e.target.value);
-                              if (value !== student[a.key]) void handleUpdateMark(student, a.key, value).then(ok => { if (!ok) e.target.value = String(student[a.key]); });
-                            }} />
-                          </td>)}
-                          <td style={{ color: "#e6c978", fontWeight: 900 }}>{getTotalScore(student).toFixed(1)}</td>
-                        </tr>)}
-                        {!filteredStudents.length && <tr><td colSpan={11} style={{ textAlign: "center", padding: 35, color: "#85867d" }}>No students found in Grade {selectedGrade}, Section {selectedSection}.</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-              </>
-            )}
-
-            {activePage === "exams" && (
-              <>
-                <div style={{ marginBottom: 20 }}>
-                  <div className="eyebrow">TEACHING & LEARNING QUALITY</div>
-                  <h1 className="page-title" style={{ marginTop: 9 }}>Examination Review Board</h1>
-                  <p className="page-sub">Receive teacher submissions and review preliminary examination quality feedback.</p>
-                </div>
-                <div className="panel-grid">
-                  <form className="panel" onSubmit={handleExamSubmit}>
-                    <h3 className="panel-title"><Sparkles size={17} style={{ display: "inline", marginRight: 8 }} />Submit Examination</h3>
-                    <div style={{ marginBottom: 13 }}><label className="small-label">TEACHER NAME</label><input className="field" placeholder="Teacher name" value={examForm.teacher_name} onChange={e => setExamForm({ ...examForm, teacher_name: e.target.value })} /></div>
-                    <div style={{ marginBottom: 13 }}><label className="small-label">SUBJECT</label><input className="field" required placeholder="e.g. Mathematics" value={examForm.subject} onChange={e => setExamForm({ ...examForm, subject: e.target.value })} /></div>
-                    <div style={{ marginBottom: 13 }}><label className="small-label">GRADE</label><select className="field" value={examForm.grade} onChange={e => setExamForm({ ...examForm, grade: Number(e.target.value) })}>{Array.from({ length: 12 }, (_, i) => i + 1).map(g => <option key={g} value={g}>Grade {g}</option>)}</select></div>
-                    <div style={{ marginBottom: 13 }}><label className="small-label">EXAMINATION TYPE</label><select className="field" value={examForm.exam_type} onChange={e => setExamForm({ ...examForm, exam_type: e.target.value })}>{ASSESSMENTS.map(a => <option key={a.key}>{a.label} ({a.max}%)</option>)}</select></div>
-                    <div style={{ marginBottom: 15 }}><label className="small-label">QUESTIONS & MARKING SCHEME</label><textarea className="field" rows={9} required placeholder="Paste examination questions and marking scheme..." value={examForm.exam_content} onChange={e => setExamForm({ ...examForm, exam_content: e.target.value })} /></div>
-                    <button className="gold-button" disabled={busy} style={{ width: "100%" }}>{busy ? "SUBMITTING..." : "SUBMIT FOR REVIEW"}</button>
-                    <p className="muted" style={{ fontSize: 10, lineHeight: 1.7, marginTop: 14 }}>The current score is a preliminary rule-based indicator, not an independent AI or curriculum assessment.</p>
-                  </form>
-                  <section>
-                    <div className="panel" style={{ marginBottom: 14 }}>
-                      <div className="eyebrow">SUBMISSION SUMMARY</div>
-                      <div className="stat-value">{exams.length}</div>
-                      <div className="stat-note">Examinations received</div>
-                    </div>
-                    {exams.map(exam => <article className="exam-card" key={exam.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                        <div><div style={{ fontWeight: 800, fontSize: 13 }}>{exam.subject} • Grade {exam.grade}</div><div className="muted" style={{ fontSize: 10, marginTop: 5 }}>{exam.teacher_name} • {safeDate(exam.submitted_at)}</div><div className="muted" style={{ fontSize: 10, marginTop: 4 }}>{exam.exam_type}</div></div>
-                        <div className="gold-text" style={{ fontSize: 20, fontWeight: 900 }}>{exam.ai_score}<span style={{ fontSize: 10 }}>/100</span></div>
-                      </div>
-                      <details style={{ marginTop: 15 }}>
-                        <summary style={{ color: "#e4c77d", fontSize: 11, cursor: "pointer" }}>View examination and feedback</summary>
-                        <p style={{ whiteSpace: "pre-wrap", fontSize: 12, lineHeight: 1.8, color: "#ccc", marginTop: 13 }}>{exam.exam_content}</p>
-                        <div style={{ background: "#0b0d0b", borderRadius: 7, padding: 12, color: "#aaa", fontSize: 11, lineHeight: 1.7 }}>{exam.ai_feedback}</div>
-                      </details>
-                    </article>)}
-                    {!exams.length && <div className="panel muted" style={{ fontSize: 12 }}>No examinations have been submitted yet.</div>}
-                  </section>
-                </div>
-              </>
-            )}
-
-            {activePage === "chat" && (
-              <>
-                <div style={{ marginBottom: 20 }}>
-                  <div className="eyebrow">SCHOOL COMMUNITY</div>
-                  <h1 className="page-title" style={{ marginTop: 9 }}>Parent & Teacher Communication</h1>
-                  <p className="page-sub">A shared space for school-family communication.</p>
-                </div>
-                <section className="panel">
-                  <h3 className="panel-title">Conversation Centre</h3>
-                  <div style={{ marginBottom: 16 }}><label className="small-label">STUDENT NAME / REFERENCE</label><input className="field" placeholder="Student name and grade" value={chatStudentRef} onChange={e => setChatStudentRef(e.target.value)} /></div>
-                  <div style={{ maxHeight: 470, overflowY: "auto", marginBottom: 18 }}>
-                    {messages.map(message => <article className="message-card" key={message.id}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ color: "#e4c77d", fontSize: 11, fontWeight: 800 }}>{message.sender_name} • {message.sender_role}</span>
-                        <span className="muted" style={{ fontSize: 9 }}>{safeDate(message.created_at)}</span>
-                      </div>
-                      <div className="muted" style={{ fontSize: 10, marginTop: 7 }}>Student: {message.student_name}</div>
-                      <p style={{ fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{message.body}</p>
-                    </article>)}
-                    {!messages.length && <p className="muted" style={{ fontSize: 12 }}>No messages yet. Start a conversation below.</p>}
-                  </div>
-                  <form onSubmit={handleSendMessage} style={{ display: "flex", gap: 9 }}>
-                    <input className="field" required placeholder="Write a message..." value={chatInput} onChange={e => setChatInput(e.target.value)} />
-                    <button className="gold-button" disabled={busy} aria-label="Send message"><Send size={17} /></button>
-                  </form>
-                </section>
-              </>
-            )}
-
-            {activePage === "gallery" && (
-              <>
-                <div style={{ marginBottom: 20 }}>
-                  <div className="eyebrow">CAMPUS LIFE & ACHIEVEMENTS</div>
-                  <h1 className="page-title" style={{ marginTop: 9 }}>School Activities Gallery</h1>
-                  <p className="page-sub">Capture and share the moments that make academy life special.</p>
-                </div>
-                <form className="panel" onSubmit={handleAddGalleryItem} style={{ marginBottom: 20 }}>
-                  <h3 className="panel-title">Add a Gallery Item</h3>
-                  <div className="form-grid">
-                    <div><label className="small-label">ACTIVITY TITLE</label><input className="field" required placeholder="e.g. Annual Science Fair" value={galleryForm.title} onChange={e => setGalleryForm({ ...galleryForm, title: e.target.value })} /></div>
-                    <div><label className="small-label">CATEGORY</label><input className="field" placeholder="e.g. Science Fair" value={galleryForm.category} onChange={e => setGalleryForm({ ...galleryForm, category: e.target.value })} /></div>
-                    <div className="full"><label className="small-label">DIRECT IMAGE URL</label><input className="field" type="url" required placeholder="https://..." value={galleryForm.image_url} onChange={e => setGalleryForm({ ...galleryForm, image_url: e.target.value })} /></div>
-                    <div className="full"><button className="gold-button" disabled={busy}>{busy ? "SAVING..." : "ADD TO GALLERY +"}</button></div>
-                  </div>
-                </form>
-                <div className="gallery-grid">
-                  {gallery.map(item => <article className="gallery-card" key={item.id}>
-                    <img src={item.image_url} alt={item.title} onError={e => { e.currentTarget.style.opacity = "0.15"; }} />
-                    <div className="gallery-caption">
-                      <div className="eyebrow" style={{ fontSize: 8 }}>{item.category}</div>
-                      <div style={{ fontWeight: 800, fontSize: 13, marginTop: 7 }}>{item.title}</div>
-                    </div>
-                  </article>)}
-                </div>
-                {!gallery.length && <div className="panel muted" style={{ fontSize: 12, marginTop: 15 }}>No gallery entries yet. Add an image URL above to publish an activity.</div>}
-              </>
-            )}
-
-            {loading && <div className="panel" style={{ marginTop: 18, textAlign: "center", color: "#d9b45b", fontSize: 12 }}>Loading academy records...</div>}
-            <footer style={{ borderTop: "1px solid var(--line)", marginTop: 35, padding: "22px 0 8px", display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", color: "#686a62", fontSize: 9, letterSpacing: 1 }}>
-              <span>PRESTIGIOUS YOUTH ACADEMY</span>
-              <span>EXCELLENCE • DISCIPLINE • LEADERSHIP</span>
-              <span>2026 / 2027</span>
-            </footer>
-          </main>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="pya-app"><style>{CSS}</style><div className="portal"><aside className={`sidebar ${mobileNav?"open":""}`}><div className="side-brand"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name" style={{fontSize:10}}>PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div></div><div className="side-label">ADMINISTRATION</div><button className={`side-link ${page==="overview"?"active":""}`} onClick={()=>{setPage("overview");setMobileNav(false)}}><LayoutDashboard size={17}/>Overview</button><button className={`side-link ${page==="students"?"active":""}`} onClick={()=>{setPage("students");setMobileNav(false)}}><Users size={17}/>Students & Enrollment</button><div className="side-label">ACADEMIC YEAR</div><div style={{margin:"0 8px",padding:13,background:"#ffffff08",border:"1px solid #ffffff12",borderRadius:8}}><div style={{color:"#e4c77d",fontSize:12,fontWeight:800}}>2026 / 2027</div><div style={{color:"#77786f",fontSize:10,marginTop:5}}>Current session</div></div><div className="side-bottom"><div style={{display:"flex",alignItems:"center",gap:10,padding:"5px 8px 15px"}}><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div><div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{color:"#d4b45f",fontSize:10,marginTop:3}}>Administrator</div></div></div><button className="side-link" onClick={signOut}><LogOut size={17}/>Sign out</button></div></aside>
+    <div className="portal-main"><header className="topbar"><div style={{display:"flex",alignItems:"center",gap:13}}><button className="mobile-menu" onClick={()=>setMobileNav(v=>!v)}><Menu size={19}/></button><div><div className="eyebrow" style={{fontSize:8}}>PRESTIGIOUS YOUTH ACADEMY</div><div style={{fontSize:13,fontWeight:800,marginTop:4}}>{page==="overview"?"Administrator Overview":"Student Management"}</div></div></div><div className="topbar-user"><button onClick={()=>void loadSchoolData()} title="Refresh records" style={{border:"1px solid var(--line)",color:"#dfc579",background:"#ffffff06",padding:9,borderRadius:7}}><RefreshCw size={15}/></button><div style={{textAlign:"right"}}><div style={{fontSize:11,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{fontSize:9,color:"#d9b45b",marginTop:3}}>Administrator</div></div><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div></div></header>
+    <main className="content">{(error||notice)&&<div className={`notice ${error?"error":"success"}`}><span style={{display:"flex",alignItems:"center",gap:9}}>{error?<AlertCircle size={17}/>:<CheckCircle2 size={17}/>} {error||notice}</span><button onClick={()=>{setError("");setNotice("")}} style={{background:"none",border:0,color:"inherit"}}><X size={16}/></button></div>}
+    {page==="overview"&&<><section className="welcome-banner"><div className="eyebrow">EXECUTIVE WORKSPACE</div><h1 className="serif" style={{fontSize:"clamp(27px,4vw,39px)",margin:"12px 0 8px"}}>Welcome, <span className="gold-text">{profile.full_name||"Administrator"}</span></h1><p style={{color:"#aaa99e",fontSize:12,lineHeight:1.8,maxWidth:570}}>Manage official student records and class enrollment for the 2026/2027 academic year.</p><button className="gold-button" onClick={()=>setPage("students")}>MANAGE STUDENTS <ArrowRight size={13} style={{display:"inline",marginLeft:6}}/></button></section><div className="stats-grid"><div className="stat-card"><div className="stat-top">Registered Students <Users size={17}/></div><div className="stat-value">{loading?"—":students.length}</div><div className="stat-note">Student identity records</div></div><div className="stat-card"><div className="stat-top">Grade Levels <BookOpen size={17}/></div><div className="stat-value">12</div><div className="stat-note">Grade 1 through 12</div></div><div className="stat-card"><div className="stat-top">Class Sections <LayoutDashboard size={17}/></div><div className="stat-value">{sections.length||60}</div><div className="stat-note">Five sections per grade</div></div><div className="stat-card"><div className="stat-top">Planned Capacity <Users size={17}/></div><div className="stat-value">2,400</div><div className="stat-note">40 students per section</div></div></div><section className="panel"><h3 className="panel-title">System readiness</h3><p className="muted" style={{fontSize:12,lineHeight:1.8}}>Administrator authentication is connected to Supabase. Student records and class enrollments are stored in the new school database. Examination results, teacher accounts and parent access will be connected in the next implementation stages.</p><button className="outline-button" onClick={()=>setPage("students")}>OPEN STUDENT REGISTER</button></section></>}
+    {page==="students"&&<><div style={{marginBottom:20}}><div className="eyebrow">ACADEMIC RECORDS • 2026/2027</div><h1 className="page-title" style={{marginTop:9}}>Student Management</h1><p className="page-sub">Register, update, allocate and remove official student records.</p></div><div className="stats-grid"><div className="stat-card"><div className="stat-top">Total Students <Users size={17}/></div><div className="stat-value">{students.length}</div><div className="stat-note">All student records</div></div><div className="stat-card"><div className="stat-top">Grade Levels <BookOpen size={17}/></div><div className="stat-value">12</div><div className="stat-note">Grade 1–12</div></div><div className="stat-card"><div className="stat-top">Class Sections <LayoutDashboard size={17}/></div><div className="stat-value">{sections.length}</div><div className="stat-note">Available in current year</div></div><div className="stat-card"><div className="stat-top">Current Capacity <Users size={17}/></div><div className="stat-value">{students.length}/2400</div><div className="stat-note">Planned school capacity</div></div></div>
+    <section className="panel" style={{marginBottom:16}}><h3 className="panel-title"><Plus size={17} style={{display:"inline",marginRight:8}}/>{editing?"Update Student Record":"Register a Student"}</h3><form onSubmit={saveStudent} className="form-grid"><div><label className="small-label">FIRST NAME *</label><input className="field" required value={form.first_name} onChange={e=>setForm({...form,first_name:e.target.value})} placeholder="First name"/></div><div><label className="small-label">MIDDLE NAME</label><input className="field" value={form.middle_name} onChange={e=>setForm({...form,middle_name:e.target.value})} placeholder="Middle name"/></div><div><label className="small-label">LAST NAME *</label><input className="field" required value={form.last_name} onChange={e=>setForm({...form,last_name:e.target.value})} placeholder="Last name"/></div><div><label className="small-label">DATE OF BIRTH</label><input className="field" type="date" value={form.date_of_birth} onChange={e=>setForm({...form,date_of_birth:e.target.value})}/></div><div><label className="small-label">GENDER</label><select className="field" value={form.gender} onChange={e=>setForm({...form,gender:e.target.value})}><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div><div><label className="small-label">PHONE</label><input className="field" type="tel" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Student/guardian phone"/></div><div><label className="small-label">GRADE *</label><select className="field" value={form.grade} onChange={e=>setForm({...form,grade:Number(e.target.value)})}>{Array.from({length:12},(_,i)=>i+1).map(g=><option key={g} value={g}>Grade {g}</option>)}</select></div><div><label className="small-label">SECTION *</label><select className="field" value={form.section} onChange={e=>setForm({...form,section:e.target.value})}>{sections.filter(s=>s.grade===Number(form.grade)).map(s=><option key={s.id} value={s.section_name}>Section {s.section_name}</option>)}</select></div><div className="full"><label className="small-label">ADDRESS</label><input className="field" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Student address"/></div><div className="full" style={{display:"flex",gap:9,flexWrap:"wrap"}}><button className="gold-button" disabled={busy}>{busy?(editing?"UPDATING…":"REGISTERING…"):(editing?"SAVE CHANGES":"REGISTER STUDENT +")}</button>{editing&&<button type="button" className="outline-button" onClick={()=>{setEditing(null);setForm(EMPTY_FORM)}}>CANCEL EDIT</button>}</div></form></section>
+    <section className="panel"><div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center",marginBottom:17}}><h3 className="panel-title" style={{margin:0}}>Official Student Register</h3><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><select className="field" style={{width:115}} value={gradeFilter} onChange={e=>setGradeFilter(Number(e.target.value))}>{Array.from({length:12},(_,i)=>i+1).map(g=><option key={g} value={g}>Grade {g}</option>)}</select><input className="field" style={{width:160}} placeholder="Search name / ID…" value={search} onChange={e=>setSearch(e.target.value)}/></div></div><div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>{["A","B","C","D","E"].map(s=><button key={s} className={sectionFilter===s?"gold-button":"outline-button"} style={{padding:"8px 15px",fontSize:11}} onClick={()=>setSectionFilter(s)}>{s}</button>)}</div><div className="table-wrap"><table><thead><tr><th>Admission No.</th><th>Student Name</th><th>Age</th><th>Gender</th><th>Phone</th><th>Grade / Section</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filteredStudents.map(st=><tr key={st.id}><td style={{color:"#e6c978",fontWeight:800}}>{st.admission_number}</td><td style={{fontWeight:800,color:"#f0e8d4"}}>{fullName(st)}</td><td>{ageFromDob(st.date_of_birth)}</td><td>{st.gender||"—"}</td><td>{st.phone||"—"}</td><td>Grade {st.grade} • {st.section}</td><td>{st.is_active?"Active":"Inactive"}</td><td><div style={{display:"flex",gap:7}}><button title="Edit student" className="outline-button" style={{padding:7}} onClick={()=>beginEdit(st)}><Pencil size={14}/></button><button title="Deactivate student" className="outline-button" style={{padding:7,color:"#e58b82",borderColor:"#7b3934"}} disabled={busy} onClick={()=>void removeStudent(st)}><Trash2 size={14}/></button></div></td></tr>)}{!filteredStudents.length&&<tr><td colSpan={8} style={{textAlign:"center",padding:35,color:"#85867d"}}>No students found in Grade {gradeFilter}, Section {sectionFilter}.</td></tr>}</tbody></table></div></section></>}
+    {loading&&<div className="panel" style={{marginTop:18,textAlign:"center",color:"#d9b45b",fontSize:12}}>Loading academy records…</div>}
+    <footer style={{borderTop:"1px solid var(--line)",marginTop:35,padding:"22px 0 8px",display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",color:"#686a62",fontSize:9,letterSpacing:1}}><span>PRESTIGIOUS YOUTH ACADEMY</span><span>EXCELLENCE • DISCIPLINE • LEADERSHIP</span><span>2026 / 2027</span></footer></main></div></div></div>;
 }
+
+function TrophyIcon() { return <GraduationCap size={29}/>; }
 
