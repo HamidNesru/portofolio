@@ -1,9 +1,21 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  GraduationCap, Users, FileCheck2, MessageSquare, Image as ImageIcon,
-  LogOut, Plus, Sparkles, Send, Search, RefreshCw, AlertCircle,
-  CheckCircle2, X, BookOpen
+  import {
+  GraduationCap,
+  Users,
+  FileCheck2,
+  MessageSquare,
+  Image as ImageIcon,
+  LogOut,
+  Plus,
+  Sparkles,
+  Send,
+  Search,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  X
 } from "lucide-react";
 import { supabase, hasSupabase } from "./supabase";
 
