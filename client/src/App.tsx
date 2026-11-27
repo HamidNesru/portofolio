@@ -615,81 +615,262 @@ useEffect(() => {
     },
   ];
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#080808] text-white flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#111] border border-[#D4AF37]/40 rounded-2xl p-8 space-y-6 shadow-2xl">
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#8C6218] text-black flex items-center justify-center">
-              <GraduationCap size={34} />
+ 
+if (!user) {
+  return (
+    <div className="min-h-screen bg-[#080808] text-white">
+      <header className="fixed top-0 z-50 w-full bg-black/80 backdrop-blur-xl border-b border-[#D4AF37]/30">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-br from-[#F5D77A] to-[#946B20] p-2 rounded-xl text-black">
+              <GraduationCap size={28} />
             </div>
-
-            <h1 className="text-xl font-bold text-[#D4AF37]">
-              PRESTIGIOUS YOUTH ACADEMY
-            </h1>
-
-            <p className="text-xs text-gray-400">
-              School Management Portal
-            </p>
+            <div>
+              <h1 className="font-bold text-[#E7C66C] tracking-wider text-sm">
+                PRESTIGIOUS YOUTH ACADEMY
+              </h1>
+              <p className="text-[9px] text-gray-400 tracking-[3px]">
+                EXCELLENCE • DISCIPLINE • LEADERSHIP
+              </p>
+            </div>
           </div>
 
-          <form
-            onSubmit={event => {
-              event.preventDefault();
-
-              if (!loginName.trim()) {
-                reportError("Enter your name.");
-                return;
-              }
-
-              setUser({
-                name: loginName.trim(),
-                role: loginRole,
-              });
-            }}
-            className="space-y-4"
+          <button
+            onClick={() => setShowLogin(true)}
+            className="bg-gradient-to-r from-[#D4AF37] to-[#A77A22] text-black font-bold text-xs px-6 py-3 rounded-full hover:scale-105 transition"
           >
-            <input
-              required
-              value={loginName}
-              onChange={event => setLoginName(event.target.value)}
-              placeholder="Full name"
-              className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-sm"
-            />
+            PORTAL LOGIN →
+          </button>
+        </div>
+      </header>
 
-            <div className="grid grid-cols-3 gap-2">
-              {(["Admin", "Teacher", "Parent"] as UserRole[]).map(role => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setLoginRole(role)}
-                  className={`rounded-lg p-2 text-xs font-bold border ${
-                    loginRole === role
-                      ? "bg-[#D4AF37] text-black border-[#D4AF37]"
-                      : "border-gray-700 text-gray-400"
-                  }`}
-                >
-                  {role}
-                </button>
-              ))}
+      <section className="relative min-h-[750px] h-screen max-h-[950px] flex items-center overflow-hidden">
+        {heroImages.map((src, index) => (
+          <div
+            key={src}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-[1500ms] ${
+              heroIndex === index ? "opacity-100" : "opacity-0"
+            }`}
+            style={{ backgroundImage: `url("${src}")` }}
+          />
+        ))}
+
+        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/75 to-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-transparent to-black/30" />
+
+        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 pt-24">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 border border-[#D4AF37]/50 rounded-full px-4 py-2 mb-7 bg-black/40">
+              <span className="w-2 h-2 rounded-full bg-[#D4AF37]" />
+              <span className="text-[#E6C66F] text-[10px] tracking-[3px] font-bold">
+                SHAPING TOMORROW'S LEADERS
+              </span>
             </div>
 
-            <button
-              type="submit"
-              className="w-full bg-[#D4AF37] text-black rounded-xl p-3 font-bold"
-            >
-              Enter {loginRole} Portal
-            </button>
-          </form>
+            <p className="text-[#D4AF37] text-sm tracking-[5px] mb-5">
+              WELCOME TO
+            </p>
 
-          <p className="text-[10px] text-center text-gray-500">
-            Demonstration login only. Configure Supabase Authentication and
-            role-based access before using this system with real student data.
-          </p>
+            <h2 className="text-5xl md:text-7xl font-black leading-tight">
+              PRESTIGIOUS
+              <span className="block text-[#D4AF37]">
+                YOUTH ACADEMY
+              </span>
+            </h2>
+
+            <div className="w-24 h-1 bg-[#D4AF37] my-7" />
+
+            <p className="text-gray-200 text-lg md:text-xl max-w-xl leading-relaxed">
+              Building knowledge, developing character and inspiring
+              the next generation of exceptional leaders.
+            </p>
+
+            <div className="flex flex-wrap gap-4 mt-9">
+              <button
+                onClick={() => setShowLogin(true)}
+                className="bg-gradient-to-r from-[#E7C66C] to-[#A77A22] text-black px-8 py-4 rounded-lg font-black text-sm hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] transition"
+              >
+                ENTER SCHOOL PORTAL →
+              </button>
+
+              <a
+                href="#about"
+                className="border border-white/40 text-white px-8 py-4 rounded-lg font-bold text-sm hover:bg-white/10 transition"
+              >
+                DISCOVER OUR SCHOOL
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
-    );
-  }
+
+        <div className="absolute bottom-10 left-6 right-6 z-10 flex justify-between items-end">
+          <div className="text-[10px] tracking-[4px] text-[#D4AF37]">
+            PRESTIGIOUS YOUTH ACADEMY
+          </div>
+
+          <div className="flex gap-2">
+            {heroImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setHeroIndex(index)}
+                className={`h-1.5 rounded-full transition-all ${
+                  heroIndex === index
+                    ? "w-10 bg-[#D4AF37]"
+                    : "w-5 bg-white/40"
+                }`}
+                aria-label={`Show hero image ${index + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="about" className="bg-[#0D0D0D] py-20 px-6">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-[#D4AF37] tracking-[4px] text-xs mb-4">
+            OUR COMMITMENT
+          </p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-5">
+            Education Beyond the Classroom
+          </h2>
+          <p className="text-gray-400 max-w-2xl leading-7 mb-12">
+            We believe education is about more than academic results.
+            It is about developing confident, responsible and creative
+            individuals prepared for the future.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-5">
+            {[
+              {
+                icon: <GraduationCap size={30} />,
+                title: "Academic Excellence",
+                description: "A commitment to meaningful learning and achievement."
+              },
+              {
+                icon: <Users size={30} />,
+                title: "Student Development",
+                description: "Supporting students as they discover their potential."
+              },
+              {
+                icon: <Sparkles size={30} />,
+                title: "A Brighter Future",
+                description: "Encouraging creativity, leadership and ambition."
+              }
+            ].map(item => (
+              <div
+                key={item.title}
+                className="bg-[#151515] border border-[#D4AF37]/20 rounded-2xl p-7 hover:border-[#D4AF37] transition"
+              >
+                <div className="text-[#D4AF37] mb-5">{item.icon}</div>
+                <h3 className="font-bold text-lg mb-3">{item.title}</h3>
+                <p className="text-sm text-gray-400 leading-6">
+                  {item.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="bg-black border-t border-[#D4AF37]/20 py-8 text-center">
+        <p className="text-[#D4AF37] text-xs tracking-[3px] font-bold">
+          PRESTIGIOUS YOUTH ACADEMY
+        </p>
+        <p className="text-gray-600 text-[10px] mt-3">
+          EXCELLENCE • DISCIPLINE • LEADERSHIP
+        </p>
+      </footer>
+
+      {showLogin && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="relative w-full max-w-md bg-[#111] border border-[#D4AF37]/50 rounded-2xl p-8 shadow-2xl">
+            <button
+              onClick={() => setShowLogin(false)}
+              className="absolute right-5 top-5 text-gray-400 hover:text-white"
+              aria-label="Close login"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#E7C66C] to-[#946B20] text-black flex items-center justify-center mb-4">
+                <GraduationCap size={35} />
+              </div>
+              <h2 className="text-xl font-black text-[#D4AF37]">
+                SCHOOL PORTAL
+              </h2>
+              <p className="text-xs text-gray-500 mt-2">
+                Demonstration access
+              </p>
+            </div>
+
+            <form
+              onSubmit={event => {
+                event.preventDefault();
+                if (!loginName.trim()) return;
+
+                setUser({
+                  name: loginName.trim(),
+                  role: loginRole
+                });
+                setShowLogin(false);
+              }}
+              className="space-y-5"
+            >
+              <label className="block">
+                <span className="text-xs text-gray-400 mb-2 block">
+                  YOUR NAME
+                </span>
+                <input
+                  required
+                  value={loginName}
+                  onChange={event => setLoginName(event.target.value)}
+                  placeholder="Enter your full name"
+                  className="w-full bg-[#1C1C1C] border border-gray-700 focus:border-[#D4AF37] rounded-lg p-4 text-sm outline-none"
+                />
+              </label>
+
+              <div>
+                <span className="text-xs text-gray-400 mb-3 block">
+                  SELECT YOUR PORTAL
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Admin", "Teacher", "Parent"] as UserRole[]).map(role => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => setLoginRole(role)}
+                      className={`rounded-lg py-3 text-xs font-bold border transition ${
+                        loginRole === role
+                          ? "bg-[#D4AF37] text-black border-[#D4AF37]"
+                          : "bg-[#1A1A1A] text-gray-400 border-gray-700"
+                      }`}
+                    >
+                      {role}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#E7C66C] to-[#A77A22] text-black rounded-lg p-4 font-black text-sm"
+              >
+                ENTER {loginRole.toUpperCase()} PORTAL
+              </button>
+            </form>
+
+            <p className="text-[10px] text-center text-gray-600 mt-6 leading-5">
+              Demonstration login only. Configure Supabase Authentication
+              and role-based access before using real student records.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
   return (
     <div className="min-h-screen bg-[#080808] text-gray-100">
