@@ -174,7 +174,22 @@ export default function App() {
 
   const [loginName, setLoginName] = useState("Director Solomon");
   const [loginRole, setLoginRole] = useState<UserRole>("Admin");
+const [showLogin, setShowLogin] = useState(false);
+const [heroIndex, setHeroIndex] = useState(0);
 
+const heroImages = [
+  "/academy-hero-1.jpg",
+  "/academy-hero-2.jpg",
+  "/academy-hero-3.jpg",
+];
+
+useEffect(() => {
+  const timer = window.setInterval(() => {
+    setHeroIndex(current => (current + 1) % heroImages.length);
+  }, 6000);
+
+  return () => window.clearInterval(timer);
+}, []);
   const [activePage, setActivePage] = useState<Page>("students");
   const [selectedGrade, setSelectedGrade] = useState(9);
   const [selectedSection, setSelectedSection] = useState("A");
