@@ -233,7 +233,7 @@ export default function App() {
       const labels = ["Students", "Exams", "Messages", "Gallery"];
       const errors: string[] = [];
 
-      results.forEach((result, index) => {
+   results.forEach((result: { error: { message: string } | null }, index: number) => {
         if (result.error) {
           console.error(`${labels[index]} loading error:`, result.error);
           errors.push(`${labels[index]}: ${result.error.message}`);
