@@ -437,17 +437,54 @@ export default function App() {
       return;
     }
 
-    setLoading(true);
-    setError("");
+   const loadData = useCallback(async () => {
+  setLoading(true);
+  setError("");
 
-    try {
-      const results = await Promise.all([
-        supabase.from("students").select("*").order("full_name"),
-        supabase.from("exams").select("*").order("submitted_at", { ascending: false }),
-        supabase.from("messages").select("*").order("created_at"),
-        supabase.from("gallery").select("*").order("created_at", { ascending: false })
-      ]);
+  try {
+    const client = supabase;
 
+    if (!client) {
+      throw new Error(
+        "Supabase is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY."
+      );
+    }
+
+    const results = await Promise.all([
+      client.from("students").select("*").order("full_name"),
+      client.from("exams").select("*").order("submitted_at", { ascending: false }),
+      client.from("messages").select("*").order("created_at"),
+      client.from("gallery").select("*").order("created_at", { ascending: false })
+    ]);
+
+    const labels = ["Students", "Exams", "Messages", "Gallery"];
+    const errors: string[] = [];
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+
+      if (result.error) {
+        console.error(`${labels[i]} loading error:`, result.error);
+        errors.push(`${labels[i]}: ${result.error.message}`);
+      }
+    }
+
+    if (results[0].data) setStudents(results[0].data as StudentRecord[]);
+    if (results[1].data) setExams(results[1].data as ExamSubmission[]);
+    if (results[2].data) setMessages(results[2].data as ChatMessage[]);
+    if (results[3].data) setGallery(results[3].data as GalleryItem[]);
+
+    if (errors.length) {
+      reportError(errors.join(" | "));
+    }
+  } catch (err) {
+    reportError(
+      err instanceof Error ? err.message : "Unable to load school records."
+    );
+  } finally {
+    setLoading(false);
+  }
+}, []);
       const labels = ["Students", "Exams", "Messages", "Gallery"];
       const errors: string[] = [];
 
