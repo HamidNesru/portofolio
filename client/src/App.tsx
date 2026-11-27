@@ -457,8 +457,6 @@ export default function App() {
       client.from("gallery").select("*").order("created_at", { ascending: false })
     ]);
 
-    const labels = ["Students", "Exams", "Messages", "Gallery"];
-    const errors: string[] = [];
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
