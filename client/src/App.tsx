@@ -484,9 +484,8 @@ export default function App() {
   }
 }, []);
       
-      const errors: string[] = [];
-
-      for (let i = 0; i < results.length; i++) {
+  
+        for (let i = 0; i < results.length; i++) {
         if (results[i].error) {
           console.error(`${labels[i]} loading error:`, results[i].error);
           errors.push(`${labels[i]}: ${results[i].error.message}`);
