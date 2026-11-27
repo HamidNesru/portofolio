@@ -5,8 +5,7 @@ import {
   Image as ImageIcon, LogOut, Plus, Sparkles, Send,
   RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard,
   Menu, ArrowRight, Award, ChevronRight,
-  Trophy, Microscope,
-  TrendingUp, 
+  Trophy, Microscope, TrendingUp
 } from "lucide-react";
 import { supabase, hasSupabase } from "./supabase";
 
