@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   GraduationCap,
   Users,
@@ -13,7 +14,7 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
-  X
+  X,
 } from "lucide-react";
 import { supabase, hasSupabase } from "./supabase";
 
@@ -77,6 +78,8 @@ const ASSESSMENTS = [
   { key: "final_exam", label: "Final Exam", max: 40 },
 ] as const;
 
+type AssessmentKey = (typeof ASSESSMENTS)[number]["key"];
+
 const EMPTY_STUDENT = {
   full_name: "",
   grade: 9,
@@ -92,26 +95,38 @@ const EMPTY_EXAM = {
   exam_content: "",
 };
 
+const EMPTY_GALLERY = {
+  title: "",
+  category: "Science Fair",
+  image_url: "",
+};
+
 function getTotalScore(student: StudentRecord): number {
-  return ASSESSMENTS.reduce(
-    (total, assessment) =>
-      total + (Number(student[assessment.key]) || 0),
-    0
-  );
+  return ASSESSMENTS.reduce((total, assessment) => {
+    return total + (Number(student[assessment.key]) || 0);
+  }, 0);
 }
 
-// This is a preliminary rule-based assessment, NOT a real AI model.
-function evaluateExamQuality(subject: string, grade: number, content: string) {
+function evaluateExamQuality(
+  subject: string,
+  grade: number,
+  content: string
+) {
   const text = content.trim();
   const words = text ? text.split(/\s+/).length : 0;
 
   const analytical =
-    /(analyze|compare|evaluate|calculate|explain|derive|justify|discuss)/i.test(text);
+    /(analyze|compare|evaluate|calculate|explain|derive|justify|discuss)/i.test(
+      text
+    );
 
-  const numbered = /(\b1[.)]|\b2[.)]|\bQ1|\bQuestion\s*1)/i.test(text);
+  const numbered =
+    /(\b1[.)]|\b2[.)]|\bQ1|\bQuestion\s*1)/i.test(text);
+
   const marks = /\b\d+\s*marks?\b|\[\s*\d+\s*\]/i.test(text);
 
   let score = 55;
+
   if (words >= 20) score += 10;
   if (words >= 50) score += 10;
   if (analytical) score += 10;
@@ -132,11 +147,23 @@ function evaluateExamQuality(subject: string, grade: number, content: string) {
   };
 }
 
-function safeDate(value: string) {
+function safeDate(value?: string) {
+  if (!value) return "Date unavailable";
+
   const date = new Date(value);
+
   return Number.isNaN(date.getTime())
     ? value
     : date.toLocaleString();
+}
+
+function validImageUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 export default function App() {
@@ -167,11 +194,7 @@ export default function App() {
   const [examForm, setExamForm] = useState(EMPTY_EXAM);
   const [chatInput, setChatInput] = useState("");
   const [chatStudentRef, setChatStudentRef] = useState("");
-  const [galleryForm, setGalleryForm] = useState({
-    title: "",
-    category: "Science Fair",
-    image_url: "",
-  });
+  const [galleryForm, setGalleryForm] = useState(EMPTY_GALLERY);
 
   const notify = (message: string) => {
     setNotice(message);
@@ -183,9 +206,10 @@ export default function App() {
     setNotice("");
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!hasSupabase || !supabase) {
       setLoading(false);
+      reportError("Supabase is not configured. Check your Vercel environment variables.");
       return;
     }
 
@@ -195,44 +219,71 @@ export default function App() {
     try {
       const results = await Promise.all([
         supabase.from("students").select("*").order("full_name"),
-        supabase.from("exams").select("*").order("submitted_at", { ascending: false }),
+        supabase
+          .from("exams")
+          .select("*")
+          .order("submitted_at", { ascending: false }),
         supabase.from("messages").select("*").order("created_at"),
-        supabase.from("gallery").select("*").order("created_at", { ascending: false }),
+        supabase
+          .from("gallery")
+          .select("*")
+          .order("created_at", { ascending: false }),
       ]);
 
       const labels = ["Students", "Exams", "Messages", "Gallery"];
+      const errors: string[] = [];
 
-      for (let i = 0; i < results.length; i++) {
-        if (results[i].error) {
-          console.error(labels[i], results[i].error);
+      results.forEach((result, index) => {
+        if (result.error) {
+          console.error(`${labels[index]} loading error:`, result.error);
+          errors.push(`${labels[index]}: ${result.error.message}`);
         }
+      });
+
+      if (results[0].data) {
+        setStudents(results[0].data as StudentRecord[]);
       }
 
-      if (results[0].data) setStudents(results[0].data as StudentRecord[]);
-      if (results[1].data) setExams(results[1].data as ExamSubmission[]);
-      if (results[2].data) setMessages(results[2].data as ChatMessage[]);
-      if (results[3].data) setGallery(results[3].data as GalleryItem[]);
+      if (results[1].data) {
+        setExams(results[1].data as ExamSubmission[]);
+      }
+
+      if (results[2].data) {
+        setMessages(results[2].data as ChatMessage[]);
+      }
+
+      if (results[3].data) {
+        setGallery(results[3].data as GalleryItem[]);
+      }
+
+      if (errors.length > 0) {
+        reportError(errors.join(" | "));
+      }
     } catch (err) {
-      reportError(err instanceof Error ? err.message : "Unable to load school records.");
+      reportError(
+        err instanceof Error ? err.message : "Unable to load school records."
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadData();
-  }, []);
+  }, [loadData]);
 
   const filteredStudents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
     return students.filter(
       student =>
-        student.grade === selectedGrade &&
+        Number(student.grade) === selectedGrade &&
         student.section === selectedSection &&
-        student.full_name.toLowerCase().includes(search.toLowerCase())
+        String(student.full_name || "").toLowerCase().includes(query)
     );
   }, [students, selectedGrade, selectedSection, search]);
 
-  const handleAddStudent = async (e: React.FormEvent) => {
+  const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!newStudent.full_name.trim()) {
@@ -240,13 +291,42 @@ export default function App() {
       return;
     }
 
+    if (
+      !Number.isInteger(Number(newStudent.grade)) ||
+      Number(newStudent.grade) < 1 ||
+      Number(newStudent.grade) > 12
+    ) {
+      reportError("Select a valid grade from 1 to 12.");
+      return;
+    }
+
+    if (!SECTIONS.includes(newStudent.section)) {
+      reportError("Select a valid section.");
+      return;
+    }
+
+    if (
+      !Number.isFinite(Number(newStudent.age)) ||
+      Number(newStudent.age) < 5 ||
+      Number(newStudent.age) > 25
+    ) {
+      reportError("Student age must be between 5 and 25.");
+      return;
+    }
+
     const count = students.filter(
-      s => s.grade === Number(newStudent.grade) &&
-           s.section === newStudent.section
+      student =>
+        Number(student.grade) === Number(newStudent.grade) &&
+        student.section === newStudent.section
     ).length;
 
     if (count >= 40) {
       reportError("This section already contains 40 students.");
+      return;
+    }
+
+    if (!supabase || !hasSupabase) {
+      reportError("Supabase is not configured. Student was not saved.");
       return;
     }
 
@@ -268,10 +348,6 @@ export default function App() {
     setBusy(true);
 
     try {
-      if (!supabase || !hasSupabase) {
-        throw new Error("Supabase is not configured. Student was not saved.");
-      }
-
       const { data, error: dbError } = await supabase
         .from("students")
         .insert([record])
@@ -280,13 +356,21 @@ export default function App() {
 
       if (dbError) throw dbError;
 
-      setStudents(prev => [...prev, data as StudentRecord]);
+      setStudents(previous => [...previous, data as StudentRecord]);
       setSelectedGrade(record.grade);
       setSelectedSection(record.section);
-      setNewStudent({ ...EMPTY_STUDENT, grade: record.grade, section: record.section });
+
+      setNewStudent({
+        ...EMPTY_STUDENT,
+        grade: record.grade,
+        section: record.section,
+      });
+
       notify("Student successfully registered.");
     } catch (err) {
-      reportError(err instanceof Error ? err.message : "Student registration failed.");
+      reportError(
+        err instanceof Error ? err.message : "Student registration failed."
+      );
     } finally {
       setBusy(false);
     }
@@ -294,41 +378,60 @@ export default function App() {
 
   const handleUpdateMark = async (
     student: StudentRecord,
-    key: typeof ASSESSMENTS[number]["key"],
+    key: AssessmentKey,
     value: number
   ) => {
     const assessment = ASSESSMENTS.find(item => item.key === key);
-    if (!assessment || !Number.isFinite(value) || value < 0 || value > assessment.max) {
+
+    if (
+      !assessment ||
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > assessment.max
+    ) {
       reportError(`Enter a mark between 0 and ${assessment?.max ?? 0}.`);
-      return;
+      return false;
     }
 
     if (!supabase || !hasSupabase) {
       reportError("Supabase is not configured.");
-      return;
+      return false;
     }
 
-    const { error: dbError } = await supabase
-      .from("students")
-      .update({ [key]: value })
-      .eq("id", student.id);
+    try {
+      const { error: dbError } = await supabase
+        .from("students")
+        .update({ [key]: value })
+        .eq("id", student.id);
 
-    if (dbError) {
-      reportError(dbError.message);
-      return;
+      if (dbError) throw dbError;
+
+      setStudents(previous =>
+        previous.map(item =>
+          item.id === student.id ? { ...item, [key]: value } : item
+        )
+      );
+
+      notify(`${assessment.label} mark updated.`);
+      return true;
+    } catch (err) {
+      reportError(
+        err instanceof Error ? err.message : "Unable to update student mark."
+      );
+      return false;
     }
-
-    setStudents(prev =>
-      prev.map(s => s.id === student.id ? { ...s, [key]: value } : s)
-    );
-    notify("Student mark updated.");
   };
 
-  const handleExamSubmit = async (e: React.FormEvent) => {
+  const handleExamSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!examForm.subject.trim() || !examForm.exam_content.trim()) {
       reportError("Enter the subject and examination questions.");
+      return;
+    }
+
+    if (!supabase || !hasSupabase) {
+      reportError("Supabase is not configured. Exam was not saved.");
       return;
     }
 
@@ -349,11 +452,6 @@ export default function App() {
       submitted_at: new Date().toISOString(),
     };
 
-    if (!supabase || !hasSupabase) {
-      reportError("Supabase is not configured. Exam was not saved.");
-      return;
-    }
-
     setBusy(true);
 
     try {
@@ -365,17 +463,24 @@ export default function App() {
 
       if (dbError) throw dbError;
 
-      setExams(prev => [data as ExamSubmission, ...prev]);
-      setExamForm({ ...EMPTY_EXAM, teacher_name: user?.name || "" });
+      setExams(previous => [data as ExamSubmission, ...previous]);
+
+      setExamForm({
+        ...EMPTY_EXAM,
+        teacher_name: user?.name || "",
+      });
+
       notify("Examination submitted successfully.");
     } catch (err) {
-      reportError(err instanceof Error ? err.message : "Exam submission failed.");
+      reportError(
+        err instanceof Error ? err.message : "Exam submission failed."
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!chatInput.trim() || !chatStudentRef.trim()) {
@@ -407,17 +512,21 @@ export default function App() {
 
       if (dbError) throw dbError;
 
-      setMessages(prev => [...prev, data as ChatMessage]);
+      setMessages(previous => [...previous, data as ChatMessage]);
       setChatInput("");
       notify("Message sent successfully.");
     } catch (err) {
-      reportError(err instanceof Error ? err.message : "Message could not be sent.");
+      reportError(
+        err instanceof Error ? err.message : "Message could not be sent."
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  const handleAddGalleryItem = async (e: React.FormEvent) => {
+  const handleAddGalleryItem = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
     if (!galleryForm.title.trim() || !galleryForm.image_url.trim()) {
@@ -425,8 +534,8 @@ export default function App() {
       return;
     }
 
-    if (!/^https?:\/\/.+/i.test(galleryForm.image_url.trim())) {
-      reportError("Enter a valid image URL.");
+    if (!validImageUrl(galleryForm.image_url.trim())) {
+      reportError("Enter a valid HTTP or HTTPS image URL.");
       return;
     }
 
@@ -437,7 +546,7 @@ export default function App() {
 
     const record = {
       title: galleryForm.title.trim(),
-      category: galleryForm.category.trim(),
+      category: galleryForm.category.trim() || "School Activity",
       image_url: galleryForm.image_url.trim(),
     };
 
@@ -452,21 +561,43 @@ export default function App() {
 
       if (dbError) throw dbError;
 
-      setGallery(prev => [data as GalleryItem, ...prev]);
-      setGalleryForm({ title: "", category: "Science Fair", image_url: "" });
+      setGallery(previous => [data as GalleryItem, ...previous]);
+      setGalleryForm(EMPTY_GALLERY);
       notify("Gallery item added.");
     } catch (err) {
-      reportError(err instanceof Error ? err.message : "Gallery upload failed.");
+      reportError(
+        err instanceof Error ? err.message : "Gallery upload failed."
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
-    { id: "students", label: "Students & Marks", icon: <Users size={16} /> },
-    { id: "exams", label: "Exam Review", icon: <FileCheck2 size={16} /> },
-    { id: "chat", label: "Parent-Teacher", icon: <MessageSquare size={16} /> },
-    { id: "gallery", label: "Gallery", icon: <ImageIcon size={16} /> },
+  const navItems: {
+    id: Page;
+    label: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      id: "students",
+      label: "Students & Marks",
+      icon: <Users size={16} />,
+    },
+    {
+      id: "exams",
+      label: "Exam Review",
+      icon: <FileCheck2 size={16} />,
+    },
+    {
+      id: "chat",
+      label: "Parent-Teacher",
+      icon: <MessageSquare size={16} />,
+    },
+    {
+      id: "gallery",
+      label: "Gallery",
+      icon: <ImageIcon size={16} />,
+    },
   ];
 
   if (!user) {
@@ -477,21 +608,36 @@ export default function App() {
             <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-[#D4AF37] to-[#8C6218] text-black flex items-center justify-center">
               <GraduationCap size={34} />
             </div>
+
             <h1 className="text-xl font-bold text-[#D4AF37]">
               PRESTIGIOUS YOUTH ACADEMY
             </h1>
-            <p className="text-xs text-gray-400">School Management Portal</p>
+
+            <p className="text-xs text-gray-400">
+              School Management Portal
+            </p>
           </div>
 
-          <form onSubmit={e => {
-            e.preventDefault();
-            if (!loginName.trim()) return;
-            setUser({ name: loginName.trim(), role: loginRole });
-          }} className="space-y-4">
+          <form
+            onSubmit={event => {
+              event.preventDefault();
+
+              if (!loginName.trim()) {
+                reportError("Enter your name.");
+                return;
+              }
+
+              setUser({
+                name: loginName.trim(),
+                role: loginRole,
+              });
+            }}
+            className="space-y-4"
+          >
             <input
               required
               value={loginName}
-              onChange={e => setLoginName(e.target.value)}
+              onChange={event => setLoginName(event.target.value)}
               placeholder="Full name"
               className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-sm"
             />
@@ -513,13 +659,17 @@ export default function App() {
               ))}
             </div>
 
-            <button className="w-full bg-[#D4AF37] text-black rounded-xl p-3 font-bold">
+            <button
+              type="submit"
+              className="w-full bg-[#D4AF37] text-black rounded-xl p-3 font-bold"
+            >
               Enter {loginRole} Portal
             </button>
           </form>
 
           <p className="text-[10px] text-center text-gray-500">
-            Demonstration interface only. Configure Supabase Authentication before using this system with real student data.
+            Demonstration login only. Configure Supabase Authentication and
+            role-based access before using this system with real student data.
           </p>
         </div>
       </div>
@@ -531,11 +681,15 @@ export default function App() {
       <header className="bg-[#111] border-b border-[#D4AF37]/30 px-5 py-4 flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-3">
           <GraduationCap className="text-[#D4AF37]" size={30} />
+
           <div>
             <h1 className="text-sm font-bold text-[#D4AF37]">
               PRESTIGIOUS YOUTH ACADEMY
             </h1>
-            <p className="text-xs text-gray-400">{user.name} • {user.role}</p>
+
+            <p className="text-xs text-gray-400">
+              {user.name} • {user.role}
+            </p>
           </div>
         </div>
 
@@ -543,6 +697,7 @@ export default function App() {
           {navItems.map(item => (
             <button
               key={item.id}
+              type="button"
               onClick={() => setActivePage(item.id)}
               className={`px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-bold ${
                 activePage === item.id
@@ -550,52 +705,85 @@ export default function App() {
                   : "bg-[#1A1A1A] text-gray-300"
               }`}
             >
-              {item.icon}{item.label}
+              {item.icon}
+              {item.label}
             </button>
           ))}
 
           <button
+            type="button"
             onClick={() => setUser(null)}
             className="px-3 py-2 rounded-lg bg-red-950/40 text-red-400 text-xs flex items-center gap-2"
           >
-            <LogOut size={15} /> Sign Out
+            <LogOut size={15} />
+            Sign Out
           </button>
         </nav>
       </header>
 
       <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-5">
         {(error || notice) && (
-          <div className={`p-3 rounded-xl flex items-center justify-between text-sm ${
-            error ? "bg-red-950/40 text-red-300" : "bg-green-950/30 text-green-300"
-          }`}>
+          <div
+            className={`p-3 rounded-xl flex items-center justify-between text-sm ${
+              error
+                ? "bg-red-950/40 text-red-300"
+                : "bg-green-950/30 text-green-300"
+            }`}
+          >
             <span className="flex items-center gap-2">
-              {error ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />}
+              {error ? (
+                <AlertCircle size={17} />
+              ) : (
+                <CheckCircle2 size={17} />
+              )}
               {error || notice}
             </span>
-            <button onClick={() => { setError(""); setNotice(""); }}>
+
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setNotice("");
+              }}
+              aria-label="Dismiss notification"
+            >
               <X size={16} />
             </button>
           </div>
         )}
 
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-3">
           <div>
             <h2 className="text-lg font-bold text-white">
-              {activePage === "students" ? "Student Academic Management" :
-               activePage === "exams" ? "Examination Review Board" :
-               activePage === "chat" ? "Parent & Teacher Communication" :
-               "School Activities Gallery"}
+              {activePage === "students"
+                ? "Student Academic Management"
+                : activePage === "exams"
+                  ? "Examination Review Board"
+                  : activePage === "chat"
+                    ? "Parent & Teacher Communication"
+                    : "School Activities Gallery"}
             </h2>
-            <p className="text-xs text-gray-500">Academic Year • 2026/2027</p>
+
+            <p className="text-xs text-gray-500">
+              Academic Year • 2026/2027
+            </p>
           </div>
-          <button onClick={() => void loadData()} disabled={loading}
-            className="text-xs text-[#D4AF37] flex items-center gap-2">
-            <RefreshCw size={15} /> Refresh
+
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            disabled={loading}
+            className="text-xs text-[#D4AF37] flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw size={15} />
+            Refresh
           </button>
         </div>
 
         {loading && (
-          <p className="text-center text-[#D4AF37] py-4">Loading school records...</p>
+          <p className="text-center text-[#D4AF37] py-4">
+            Loading school records...
+          </p>
         )}
 
         {!loading && activePage === "students" && (
@@ -607,42 +795,98 @@ export default function App() {
                 ["Sections", 60],
                 ["Capacity", 2400],
               ].map(([label, value]) => (
-                <div key={label} className="bg-[#111] border border-[#D4AF37]/20 rounded-xl p-4">
+                <div
+                  key={String(label)}
+                  className="bg-[#111] border border-[#D4AF37]/20 rounded-xl p-4"
+                >
                   <p className="text-xs text-gray-400">{label}</p>
-                  <p className="text-xl font-bold text-[#D4AF37]">{value}</p>
+                  <p className="text-xl font-bold text-[#D4AF37]">
+                    {value}
+                  </p>
                 </div>
               ))}
             </div>
 
             <div className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-4">
               <h3 className="font-bold text-[#D4AF37] flex gap-2 items-center">
-                <Plus size={17} /> Register Student
+                <Plus size={17} />
+                Register Student
               </h3>
 
-              <form onSubmit={handleAddStudent} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <input required placeholder="Full name" value={newStudent.full_name}
-                  onChange={e => setNewStudent({ ...newStudent, full_name: e.target.value })}
-                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs" />
+              <form
+                onSubmit={handleAddStudent}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"
+              >
+                <input
+                  required
+                  placeholder="Full name"
+                  value={newStudent.full_name}
+                  onChange={event =>
+                    setNewStudent({
+                      ...newStudent,
+                      full_name: event.target.value,
+                    })
+                  }
+                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs"
+                />
 
-                <select value={newStudent.grade}
-                  onChange={e => setNewStudent({ ...newStudent, grade: Number(e.target.value) })}
-                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs">
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(g =>
-                    <option key={g} value={g}>Grade {g}</option>
+                <select
+                  value={newStudent.grade}
+                  onChange={event =>
+                    setNewStudent({
+                      ...newStudent,
+                      grade: Number(event.target.value),
+                    })
+                  }
+                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs"
+                >
+                  {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                    grade => (
+                      <option key={grade} value={grade}>
+                        Grade {grade}
+                      </option>
+                    )
                   )}
                 </select>
 
-                <select value={newStudent.section}
-                  onChange={e => setNewStudent({ ...newStudent, section: e.target.value })}
-                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs">
-                  {SECTIONS.map(s => <option key={s}>{s}</option>)}
+                <select
+                  value={newStudent.section}
+                  onChange={event =>
+                    setNewStudent({
+                      ...newStudent,
+                      section: event.target.value,
+                    })
+                  }
+                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs"
+                >
+                  {SECTIONS.map(section => (
+                    <option key={section} value={section}>
+                      Section {section}
+                    </option>
+                  ))}
                 </select>
 
-                <input type="number" min={5} max={25} required value={newStudent.age}
-                  onChange={e => setNewStudent({ ...newStudent, age: Number(e.target.value) })}
-                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs" />
+                <input
+                  type="number"
+                  min={5}
+                  max={25}
+                  required
+                  value={newStudent.age}
+                  onChange={event =>
+                    setNewStudent({
+                      ...newStudent,
+                      age: Number(event.target.value),
+                    })
+                  }
+                  placeholder="Age"
+                  className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs"
+                />
 
-                <button disabled={busy} className="bg-[#D4AF37] text-black rounded-lg p-2 font-bold text-xs">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="bg-[#D4AF37] text-black rounded-lg p-2 font-bold text-xs disabled:opacity-50"
+                >
                   {busy ? "Saving..." : "Register Student"}
                 </button>
               </form>
@@ -651,26 +895,50 @@ export default function App() {
             <div className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-4">
               <div className="flex flex-wrap justify-between items-center gap-3">
                 <div className="flex flex-wrap gap-2">
-                  <select value={selectedGrade} onChange={e => setSelectedGrade(Number(e.target.value))}
-                    className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs">
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(g =>
-                      <option key={g} value={g}>Grade {g}</option>
+                  <select
+                    value={selectedGrade}
+                    onChange={event =>
+                      setSelectedGrade(Number(event.target.value))
+                    }
+                    className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-2 text-xs"
+                  >
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                      grade => (
+                        <option key={grade} value={grade}>
+                          Grade {grade}
+                        </option>
+                      )
                     )}
                   </select>
 
-                  {SECTIONS.map(s => (
-                    <button key={s} onClick={() => setSelectedSection(s)}
+                  {SECTIONS.map(section => (
+                    <button
+                      key={section}
+                      type="button"
+                      onClick={() => setSelectedSection(section)}
                       className={`px-3 py-2 rounded-lg text-xs ${
-                        selectedSection === s ? "bg-[#D4AF37] text-black" : "bg-[#1A1A1A]"
-                      }`}>{s}</button>
+                        selectedSection === section
+                          ? "bg-[#D4AF37] text-black"
+                          : "bg-[#1A1A1A]"
+                      }`}
+                    >
+                      {section}
+                    </button>
                   ))}
                 </div>
 
                 <div className="relative">
-                  <Search size={14} className="absolute left-3 top-2.5 text-gray-500" />
-                  <input placeholder="Search student" value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="bg-[#1A1A1A] border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-xs" />
+                  <Search
+                    size={14}
+                    className="absolute left-3 top-2.5 text-gray-500"
+                  />
+
+                  <input
+                    placeholder="Search student"
+                    value={search}
+                    onChange={event => setSearch(event.target.value)}
+                    className="bg-[#1A1A1A] border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-xs"
+                  />
                 </div>
               </div>
 
@@ -680,38 +948,71 @@ export default function App() {
                     <tr>
                       <th className="p-3">Student</th>
                       <th className="p-3">Age</th>
-                      {ASSESSMENTS.map(a => <th key={a.key} className="p-3">{a.label} ({a.max})</th>)}
+
+                      {ASSESSMENTS.map(assessment => (
+                        <th key={assessment.key} className="p-3">
+                          {assessment.label} ({assessment.max})
+                        </th>
+                      ))}
+
                       <th className="p-3">Total /100</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-gray-800">
                     {filteredStudents.map(student => (
                       <tr key={student.id}>
-                        <td className="p-3 font-bold">{student.full_name}</td>
+                        <td className="p-3 font-bold">
+                          {student.full_name}
+                        </td>
+
                         <td className="p-3">{student.age}</td>
-                        {ASSESSMENTS.map(a => (
-                          <td key={a.key} className="p-2">
-                            <input type="number" min="0" max={a.max} step="0.5"
-                              defaultValue={student[a.key]}
-                              onBlur={e => {
-                                const value = Number(e.target.value);
-                                if (value !== student[a.key]) {
-                                  void handleUpdateMark(student, a.key, value);
+
+                        {ASSESSMENTS.map(assessment => (
+                          <td key={assessment.key} className="p-2">
+                            <input
+                              type="number"
+                              min="0"
+                              max={assessment.max}
+                              step="0.5"
+                              defaultValue={student[assessment.key]}
+                              onBlur={event => {
+                                const value = Number(event.target.value);
+
+                                if (value !== student[assessment.key]) {
+                                  void handleUpdateMark(
+                                    student,
+                                    assessment.key,
+                                    value
+                                  ).then(success => {
+                                    if (!success) {
+                                      event.target.value = String(
+                                        student[assessment.key]
+                                      );
+                                    }
+                                  });
                                 }
                               }}
                               className="w-14 bg-[#1A1A1A] border border-gray-700 rounded p-1 text-center"
                             />
                           </td>
                         ))}
+
                         <td className="p-3 font-bold text-[#D4AF37]">
                           {getTotalScore(student).toFixed(1)}
                         </td>
                       </tr>
                     ))}
+
                     {filteredStudents.length === 0 && (
-                      <tr><td colSpan={11} className="p-6 text-center text-gray-500">
-                        No students found in this section.
-                      </td></tr>
+                      <tr>
+                        <td
+                          colSpan={11}
+                          className="p-6 text-center text-gray-500"
+                        >
+                          No students found in this section.
+                        </td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -722,31 +1023,69 @@ export default function App() {
 
         {!loading && activePage === "exams" && (
           <section className="grid lg:grid-cols-2 gap-5">
-            <form onSubmit={handleExamSubmit}
-              className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-4">
+            <form
+              onSubmit={handleExamSubmit}
+              className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-4"
+            >
               <h3 className="font-bold text-[#D4AF37] flex items-center gap-2">
-                <Sparkles size={18} /> Submit Examination
+                <Sparkles size={18} />
+                Submit Examination
               </h3>
 
-              <input placeholder="Teacher name" value={examForm.teacher_name}
-                onChange={e => setExamForm({ ...examForm, teacher_name: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+              <input
+                placeholder="Teacher name"
+                value={examForm.teacher_name}
+                onChange={event =>
+                  setExamForm({
+                    ...examForm,
+                    teacher_name: event.target.value,
+                  })
+                }
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <input required placeholder="Subject" value={examForm.subject}
-                onChange={e => setExamForm({ ...examForm, subject: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+              <input
+                required
+                placeholder="Subject"
+                value={examForm.subject}
+                onChange={event =>
+                  setExamForm({
+                    ...examForm,
+                    subject: event.target.value,
+                  })
+                }
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <select value={examForm.grade}
-                onChange={e => setExamForm({ ...examForm, grade: Number(e.target.value) })}
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs">
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(g =>
-                  <option key={g} value={g}>Grade {g}</option>
+              <select
+                value={examForm.grade}
+                onChange={event =>
+                  setExamForm({
+                    ...examForm,
+                    grade: Number(event.target.value),
+                  })
+                }
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              >
+                {Array.from({ length: 12 }, (_, index) => index + 1).map(
+                  grade => (
+                    <option key={grade} value={grade}>
+                      Grade {grade}
+                    </option>
+                  )
                 )}
               </select>
 
-              <select value={examForm.exam_type}
-                onChange={e => setExamForm({ ...examForm, exam_type: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs">
+              <select
+                value={examForm.exam_type}
+                onChange={event =>
+                  setExamForm({
+                    ...examForm,
+                    exam_type: event.target.value,
+                  })
+                }
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              >
                 <option>Worksheet 1 (5%)</option>
                 <option>Test 1 (10%)</option>
                 <option>Worksheet 2 (5%)</option>
@@ -757,69 +1096,143 @@ export default function App() {
                 <option>Final Exam (40%)</option>
               </select>
 
-              <textarea required rows={9} placeholder="Paste examination questions and marking scheme..."
+              <textarea
+                required
+                rows={9}
+                placeholder="Paste examination questions and marking scheme..."
                 value={examForm.exam_content}
-                onChange={e => setExamForm({ ...examForm, exam_content: e.target.value })}
-                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+                onChange={event =>
+                  setExamForm({
+                    ...examForm,
+                    exam_content: event.target.value,
+                  })
+                }
+                className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <button disabled={busy}
-                className="w-full bg-[#D4AF37] text-black font-bold rounded-lg p-3 text-xs">
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full bg-[#D4AF37] text-black font-bold rounded-lg p-3 text-xs disabled:opacity-50"
+              >
                 {busy ? "Submitting..." : "Submit for Quality Review"}
               </button>
+
               <p className="text-[10px] text-gray-500">
-                Current evaluation is preliminary rule-based feedback, not an external AI assessment.
+                Current evaluation is preliminary rule-based feedback, not an
+                external AI assessment.
               </p>
             </form>
 
             <div className="space-y-4">
-              <h3 className="font-bold text-[#D4AF37]">Submitted Examinations ({exams.length})</h3>
+              <h3 className="font-bold text-[#D4AF37]">
+                Submitted Examinations ({exams.length})
+              </h3>
+
               {exams.map(exam => (
-                <article key={exam.id} className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-3">
+                <article
+                  key={exam.id}
+                  className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-3"
+                >
                   <div className="flex justify-between gap-2">
                     <div>
-                      <h4 className="font-bold text-sm">{exam.subject} • Grade {exam.grade}</h4>
-                      <p className="text-xs text-gray-500">{exam.teacher_name} • {safeDate(exam.submitted_at)}</p>
+                      <h4 className="font-bold text-sm">
+                        {exam.subject} • Grade {exam.grade}
+                      </h4>
+
+                      <p className="text-xs text-gray-500">
+                        {exam.teacher_name} • {safeDate(exam.submitted_at)}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        {exam.exam_type}
+                      </p>
                     </div>
-                    <span className="text-[#D4AF37] font-bold text-sm">{exam.ai_score}/100</span>
+
+                    <span className="text-[#D4AF37] font-bold text-sm">
+                      {exam.ai_score}/100
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-300 whitespace-pre-wrap">{exam.exam_content}</p>
+
+                  <p className="text-xs text-gray-300 whitespace-pre-wrap">
+                    {exam.exam_content}
+                  </p>
+
                   <div className="bg-[#1A1A1A] rounded-lg p-3 text-xs text-gray-300">
                     {exam.ai_feedback}
                   </div>
                 </article>
               ))}
+
+              {exams.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  No examinations have been submitted yet.
+                </p>
+              )}
             </div>
           </section>
         )}
 
         {!loading && activePage === "chat" && (
           <section className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 space-y-4">
-            <h3 className="font-bold text-[#D4AF37]">Parent–Teacher Communication</h3>
+            <h3 className="font-bold text-[#D4AF37]">
+              Parent–Teacher Communication
+            </h3>
 
-            <input placeholder="Student name and grade" value={chatStudentRef}
-              onChange={e => setChatStudentRef(e.target.value)}
-              className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+            <input
+              placeholder="Student name and grade"
+              value={chatStudentRef}
+              onChange={event => setChatStudentRef(event.target.value)}
+              className="w-full bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+            />
 
             <div className="space-y-3 max-h-[450px] overflow-y-auto">
               {messages.map(message => (
-                <div key={message.id} className="bg-[#1A1A1A] rounded-xl p-4 space-y-2">
+                <div
+                  key={message.id}
+                  className="bg-[#1A1A1A] rounded-xl p-4 space-y-2"
+                >
                   <div className="flex justify-between gap-2">
                     <span className="text-xs font-bold text-[#D4AF37]">
                       {message.sender_name} ({message.sender_role})
                     </span>
-                    <span className="text-[10px] text-gray-500">{safeDate(message.created_at)}</span>
+
+                    <span className="text-[10px] text-gray-500">
+                      {safeDate(message.created_at)}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-500">Student: {message.student_name}</p>
-                  <p className="text-sm">{message.body}</p>
+
+                  <p className="text-xs text-gray-500">
+                    Student: {message.student_name}
+                  </p>
+
+                  <p className="text-sm whitespace-pre-wrap">
+                    {message.body}
+                  </p>
                 </div>
               ))}
+
+              {messages.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  No messages yet.
+                </p>
+              )}
             </div>
 
             <form onSubmit={handleSendMessage} className="flex gap-2">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+              <input
+                value={chatInput}
+                onChange={event => setChatInput(event.target.value)}
                 placeholder="Write a message..."
-                className="flex-1 bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
-              <button disabled={busy} className="bg-[#D4AF37] text-black rounded-lg px-4">
+                className="flex-1 min-w-0 bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="bg-[#D4AF37] text-black rounded-lg px-4 disabled:opacity-50"
+                aria-label="Send message"
+              >
                 <Send size={17} />
               </button>
             </form>
@@ -828,39 +1241,88 @@ export default function App() {
 
         {!loading && activePage === "gallery" && (
           <section className="space-y-5">
-            <form onSubmit={handleAddGalleryItem}
-              className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 grid sm:grid-cols-2 gap-3">
-              <input required placeholder="Event title" value={galleryForm.title}
-                onChange={e => setGalleryForm({ ...galleryForm, title: e.target.value })}
-                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+            <form
+              onSubmit={handleAddGalleryItem}
+              className="bg-[#111] border border-[#D4AF37]/30 rounded-xl p-5 grid sm:grid-cols-2 gap-3"
+            >
+              <input
+                required
+                placeholder="Event title"
+                value={galleryForm.title}
+                onChange={event =>
+                  setGalleryForm({
+                    ...galleryForm,
+                    title: event.target.value,
+                  })
+                }
+                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <input placeholder="Category" value={galleryForm.category}
-                onChange={e => setGalleryForm({ ...galleryForm, category: e.target.value })}
-                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+              <input
+                placeholder="Category"
+                value={galleryForm.category}
+                onChange={event =>
+                  setGalleryForm({
+                    ...galleryForm,
+                    category: event.target.value,
+                  })
+                }
+                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <input required type="url" placeholder="Direct image URL" value={galleryForm.image_url}
-                onChange={e => setGalleryForm({ ...galleryForm, image_url: e.target.value })}
-                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs" />
+              <input
+                required
+                type="url"
+                placeholder="Direct image URL"
+                value={galleryForm.image_url}
+                onChange={event =>
+                  setGalleryForm({
+                    ...galleryForm,
+                    image_url: event.target.value,
+                  })
+                }
+                className="bg-[#1A1A1A] border border-gray-700 rounded-lg p-3 text-xs"
+              />
 
-              <button disabled={busy} className="bg-[#D4AF37] text-black rounded-lg p-3 font-bold text-xs">
-                Add Gallery Item
+              <button
+                type="submit"
+                disabled={busy}
+                className="bg-[#D4AF37] text-black rounded-lg p-3 font-bold text-xs disabled:opacity-50"
+              >
+                {busy ? "Saving..." : "Add Gallery Item"}
               </button>
             </form>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {gallery.map(item => (
-                <article key={item.id} className="bg-[#111] border border-[#D4AF37]/30 rounded-xl overflow-hidden">
-                  <img src={item.image_url} alt={item.title}
+                <article
+                  key={item.id}
+                  className="bg-[#111] border border-[#D4AF37]/30 rounded-xl overflow-hidden"
+                >
+                  <img
+                    src={item.image_url}
+                    alt={item.title}
                     className="w-full h-48 object-cover bg-[#1A1A1A]"
-                    onError={e => {
-                      e.currentTarget.style.display = "none";
-                    }} />
+                    onError={event => {
+                      event.currentTarget.style.display = "none";
+                    }}
+                  />
+
                   <div className="p-4 space-y-2">
-                    <p className="text-[10px] uppercase text-[#D4AF37]">{item.category}</p>
+                    <p className="text-[10px] uppercase text-[#D4AF37]">
+                      {item.category}
+                    </p>
+
                     <h3 className="font-bold text-sm">{item.title}</h3>
                   </div>
                 </article>
               ))}
+
+              {gallery.length === 0 && (
+                <p className="text-sm text-gray-500">
+                  No school activities have been added yet.
+                </p>
+              )}
             </div>
           </section>
         )}
