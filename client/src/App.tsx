@@ -485,7 +485,7 @@ export default function App() {
     setLoading(false);
   }
 }, []);
-      const labels = ["Students", "Exams", "Messages", "Gallery"];
+      
       const errors: string[] = [];
 
       for (let i = 0; i < results.length; i++) {
