@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard, Menu, ArrowRight, Search, Trash2, Pencil, UserRound, ShieldCheck } from "lucide-react";
+import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard, Menu, ArrowRight, Trash2, Pencil, ShieldCheck } from "lucide-react";
 import { supabase, hasSupabase } from "./supabase";
 
 type Profile = { id: string; email: string; full_name: string; role: string; is_active: boolean };
