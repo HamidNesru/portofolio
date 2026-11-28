@@ -8,10 +8,13 @@ type Profile = { id: string; email: string; full_name: string; role: string; is_
 type Section = { id: string; grade: number; section_name: string; academic_year_id: string };
 type Student = { id: string; admission_number: string; first_name: string; middle_name: string | null; last_name: string; date_of_birth: string | null; gender: string | null; phone: string | null; address: string | null; is_active: boolean; grade: number; section: string; enrollment_id: string | null };
 type StudentForm = { first_name: string; middle_name: string; last_name: string; date_of_birth: string; gender: string; phone: string; address: string; grade: number; section: string };
-type Page = "overview" | "students" | "staff" | "library";
+type Page = "overview" | "students" | "staff" | "library" | "results";
 type SchoolUser = { id: string; email: string; full_name: string; role: string; is_active: boolean };
 type Subject = { id: string; name: string; code: string | null; grade: number };
 type Assignment = { id: string; teacher_id: string; section_id: string; subject_id: string; is_active: boolean };
+type TeacherAssignment = Assignment & { section: Section; subject: Subject };
+type TeacherRosterStudent = Student & { section_id: string };
+type TeacherResultRow = { id: string; student_id: string; score: number; max_score: number; teacher_comment: string | null; entered_by: string | null; status: string };
 const HERO_IMAGES = ["/prestpro.png", "/prest22.jpg", "/prest23.jpg", "/prest9.jpg", "/prest7.jpg"];
 const EMPTY_FORM: StudentForm = { first_name: "", middle_name: "", last_name: "", date_of_birth: "", gender: "", phone: "", address: "", grade: 9, section: "A" };
 const CSS = `
@@ -197,6 +200,24 @@ th { color:#e7ca7b; text-align:left; padding:13px 10px; background:#1b1d18; whit
 td { padding:12px 10px; border-bottom:1px solid #292b25; color:#d0d0c7; }
 tbody tr:hover { background:#ffffff06; }
 .table-input { width:55px; background:#090b09; border:1px solid #36372f; border-radius:5px; padding:7px 4px; color:#f4dfa0; text-align:center; }
+.library-showcase {
+  position:relative; overflow:hidden; margin:0; padding:72px clamp(18px,5vw,76px) 64px;
+  background:radial-gradient(ellipse at 50% 0%,rgba(217,180,91,.13),transparent 48%),linear-gradient(180deg,#11130f,#080a09);
+  border-top:1px solid rgba(217,180,91,.18); border-bottom:1px solid rgba(217,180,91,.18);
+}
+.library-showcase-inner { max-width:1320px; margin:0 auto; text-align:center; }
+.library-showcase-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(28px,4vw,48px); line-height:1.15; margin:12px auto 14px; }
+.library-showcase-copy { color:#b8b7ad; font-size:14px; line-height:1.9; max-width:760px; margin:0 auto 25px; }
+.library-showcase-image-wrap { position:relative; max-width:1120px; margin:28px auto 0; padding:12px; border:1px solid rgba(217,180,91,.48); border-radius:16px; background:linear-gradient(135deg,rgba(217,180,91,.12),rgba(255,255,255,.015)); box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 45px rgba(217,180,91,.08); }
+.library-showcase-image { display:block; width:100%; height:auto; max-height:620px; object-fit:contain; object-position:center; border-radius:10px; background:#050606; }
+.library-cta { min-width:180px; margin-top:24px; padding:15px 30px; border-radius:999px; letter-spacing:.16em; }
+.teacher-hero { position:relative; overflow:hidden; padding:30px; border:1px solid rgba(217,180,91,.35); border-radius:16px; background:radial-gradient(ellipse at 88% 10%,rgba(217,180,91,.18),transparent 40%),linear-gradient(120deg,#191b16,#0d100e); }
+.teacher-hero:after { content:'✦'; position:absolute; right:32px; top:4px; font-size:120px; color:rgba(217,180,91,.07); pointer-events:none; }
+.stat-pill { display:inline-flex; align-items:center; border:1px solid rgba(217,180,91,.3); background:rgba(217,180,91,.08); color:#e9d18e; border-radius:999px; padding:9px 13px; font-size:10px; font-weight:800; letter-spacing:.04em; }
+.result-toolbar { display:grid; grid-template-columns:1.2fr 1fr .65fr; gap:13px; margin-top:20px; }
+.result-score-input { width:88px; min-width:70px; padding:9px 8px; text-align:center; color:#f5dfa0; background:#080a09; border:1px solid rgba(217,180,91,.35); border-radius:7px; }
+.result-comment-input { width:100%; min-width:150px; padding:9px 10px; color:#f5f0df; background:#080a09; border:1px solid #34372e; border-radius:7px; }
+@media(max-width:700px) { .library-showcase { padding:54px 15px 48px; } .library-showcase-image-wrap { padding:6px; border-radius:10px; } .result-toolbar { grid-template-columns:1fr; } .teacher-hero { padding:22px; } }
 .notice { padding:13px 16px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; }
 .notice.error { color:#ffb6ae; background:#421b1b66; border:1px solid #8e373766; }
 .notice.success { color:#a9e6bd; background:#123b2366; border:1px solid #287b4766; }
@@ -291,6 +312,15 @@ export default function App() {
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "", grade: 9 });
   const [assignmentForm, setAssignmentForm] = useState({ teacher_id: "", section_id: "", subject_id: "" });
   const [parentForm, setParentForm] = useState({ parent_id: "", student_id: "" });
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([]);
+  const [teacherRoster, setTeacherRoster] = useState<TeacherRosterStudent[]>([]);
+  const [selectedTeacherAssignmentId, setSelectedTeacherAssignmentId] = useState("");
+  const [assessmentName, setAssessmentName] = useState("Midterm Examination");
+  const [marksAssessmentName, setMarksAssessmentName] = useState("Midterm Examination");
+  const [assessmentMaxScore, setAssessmentMaxScore] = useState("100");
+  const [teacherMarks, setTeacherMarks] = useState<Record<string, { score: string; comment: string; locked?: boolean }>>({});
+  const [teacherResultsLoading, setTeacherResultsLoading] = useState(false);
+  const [teacherWorkspaceLoading, setTeacherWorkspaceLoading] = useState(false);
 
   const notify = (s: string) => { setNotice(s); setError(""); };
   const fail = (s: string) => { setError(s); setNotice(""); };
@@ -338,6 +368,66 @@ export default function App() {
     finally { setLoading(false); }
   }, []);
 
+  const loadTeacherWorkspace = useCallback(async () => {
+    if (!supabase || !profile || profile.role !== "teacher") return;
+    setTeacherWorkspaceLoading(true);
+    setError("");
+    try {
+      const yearRes = await supabase.from("school_academic_years").select("id,name").eq("is_current", true).maybeSingle();
+      if (yearRes.error) throw yearRes.error;
+      if (!yearRes.data) throw new Error("No current academic year is configured.");
+      setAcademicYearId(yearRes.data.id);
+      const assignmentRes = await supabase.from("school_teacher_assignments")
+        .select("id,teacher_id,section_id,subject_id,is_active")
+        .eq("teacher_id", profile.id).eq("is_active", true);
+      if (assignmentRes.error) throw assignmentRes.error;
+      const assignmentRows = (assignmentRes.data || []) as Assignment[];
+      if (!assignmentRows.length) {
+        setTeacherAssignments([]);
+        setTeacherRoster([]);
+        setSelectedTeacherAssignmentId("");
+        return;
+      }
+      const sectionIds = [...new Set(assignmentRows.map(a => a.section_id))];
+      const subjectIds = [...new Set(assignmentRows.map(a => a.subject_id))];
+      const [sectionsRes, subjectsRes, enrollmentsRes] = await Promise.all([
+        supabase.from("school_sections").select("id,grade,section_name,academic_year_id").in("id", sectionIds),
+        supabase.from("school_subjects").select("id,name,code,grade").in("id", subjectIds),
+        supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", yearRes.data.id).in("section_id", sectionIds)
+      ]);
+      for (const result of [sectionsRes, subjectsRes, enrollmentsRes]) if (result.error) throw result.error;
+      const sectionRows = (sectionsRes.data || []) as Section[];
+      const subjectRows = (subjectsRes.data || []) as Subject[];
+      const enrollRows = enrollmentsRes.data || [];
+      const studentIds = [...new Set(enrollRows.map((row: any) => row.student_id))];
+      let studentRows: any[] = [];
+      if (studentIds.length) {
+        const studentsRes = await supabase.from("school_students")
+          .select("id,admission_number,first_name,middle_name,last_name,date_of_birth,gender,phone,address,is_active")
+          .in("id", studentIds).eq("is_active", true).order("last_name").order("first_name");
+        if (studentsRes.error) throw studentsRes.error;
+        studentRows = studentsRes.data || [];
+      }
+      const mappedAssignments: TeacherAssignment[] = assignmentRows.flatMap(a => {
+        const section = sectionRows.find(row => row.id === a.section_id);
+        const subject = subjectRows.find(row => row.id === a.subject_id);
+        return section && subject && section.academic_year_id === yearRes.data.id ? [{ ...a, section, subject }] : [];
+      });
+      const mappedRoster: TeacherRosterStudent[] = studentRows.flatMap(student => {
+        const enrollment = enrollRows.find((row: any) => row.student_id === student.id);
+        const section = sectionRows.find(row => row.id === enrollment?.section_id);
+        return enrollment && section ? [{ ...student, grade: section.grade, section: section.section_name, enrollment_id: enrollment.id, section_id: section.id }] : [];
+      });
+      setTeacherAssignments(mappedAssignments);
+      setTeacherRoster(mappedRoster);
+      setSelectedTeacherAssignmentId(current => mappedAssignments.some(a => a.id === current) ? current : mappedAssignments[0]?.id || "");
+    } catch (e) {
+      fail(e instanceof Error ? e.message : "Unable to load your assigned classes.");
+    } finally {
+      setTeacherWorkspaceLoading(false);
+    }
+  }, [profile]);
+
   useEffect(() => {
     if (!supabase || !hasSupabase) { setSessionReady(true); return; }
     let alive = true;
@@ -364,7 +454,7 @@ export default function App() {
           fail(profileError?.message || "This account does not have an active administrator or teacher profile.");
         } else {
           setProfile(data as Profile);
-          if (data.role === "teacher") setPage("library");
+          if (data.role === "teacher") setPage("results");
         }
       } catch (verificationError) {
         if (!alive) return;
@@ -381,6 +471,101 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (profile?.role === "admin") void loadSchoolData(); }, [profile, loadSchoolData]);
+  useEffect(() => { if (profile?.role === "teacher") void loadTeacherWorkspace(); }, [profile, loadTeacherWorkspace]);
+
+  const selectedTeacherAssignment = teacherAssignments.find(a => a.id === selectedTeacherAssignmentId);
+  const selectedTeacherStudents = selectedTeacherAssignment
+    ? teacherRoster.filter(student => student.section_id === selectedTeacherAssignment.section_id)
+    : [];
+
+  useEffect(() => {
+    if (!supabase || !profile || profile.role !== "teacher" || !selectedTeacherAssignment || !marksAssessmentName.trim() || !academicYearId) {
+      setTeacherMarks({});
+      return;
+    }
+    let active = true;
+    setTeacherResultsLoading(true);
+    const loadMarks = async () => {
+      try {
+        const { data, error: resultsError } = await supabase!.from("school_results")
+          .select("id,student_id,score,max_score,teacher_comment,entered_by,status")
+          .eq("section_id", selectedTeacherAssignment.section_id)
+          .eq("subject_id", selectedTeacherAssignment.subject_id)
+          .eq("assessment_name", marksAssessmentName.trim())
+          .eq("academic_year_id", academicYearId);
+        if (resultsError) throw resultsError;
+        if (!active) return;
+        const next: Record<string, { score: string; comment: string; locked?: boolean }> = {};
+        ((data || []) as TeacherResultRow[]).forEach(row => {
+          next[row.student_id] = { score: String(row.score ?? ""), comment: row.teacher_comment || "", locked: row.entered_by !== profile.id || !["draft", "submitted"].includes(row.status) };
+        });
+        setTeacherMarks(next);
+      } catch (e) {
+        if (active) fail(e instanceof Error ? e.message : "Unable to load existing marks.");
+      } finally {
+        if (active) setTeacherResultsLoading(false);
+      }
+    };
+    void loadMarks();
+    return () => { active = false; };
+  }, [profile, selectedTeacherAssignment, marksAssessmentName, academicYearId]);
+
+  const saveTeacherResults = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase || !profile || profile.role !== "teacher" || !selectedTeacherAssignment || !academicYearId) return fail("Select one of your assigned classes first.");
+    const maxScore = Number(assessmentMaxScore);
+    if (!assessmentName.trim()) return fail("Enter the assessment name.");
+    if (!Number.isFinite(maxScore) || maxScore <= 0) return fail("Maximum score must be greater than zero.");
+    const entered = selectedTeacherStudents.filter(student => !teacherMarks[student.id]?.locked && teacherMarks[student.id]?.score !== undefined && teacherMarks[student.id]?.score.trim() !== "");
+    if (!entered.length) return fail("Enter at least one student score before saving.");
+    for (const student of entered) {
+      const score = Number(teacherMarks[student.id].score);
+      if (!Number.isFinite(score) || score < 0 || score > maxScore) return fail(`Enter a valid score between 0 and ${maxScore} for ${fullName(student)}.`);
+    }
+    setBusy(true);
+    setError("");
+    try {
+      for (const student of entered) {
+        const values = {
+          student_id: student.id,
+          section_id: selectedTeacherAssignment.section_id,
+          subject_id: selectedTeacherAssignment.subject_id,
+          academic_year_id: academicYearId,
+          assessment_name: assessmentName.trim(),
+          score: Number(teacherMarks[student.id].score),
+          max_score: maxScore,
+          teacher_comment: teacherMarks[student.id].comment.trim() || null,
+          status: "draft",
+          entered_by: profile.id,
+          updated_at: new Date().toISOString()
+        };
+        const existingRes = await supabase.from("school_results").select("id,entered_by,status")
+          .eq("student_id", student.id)
+          .eq("section_id", selectedTeacherAssignment.section_id)
+          .eq("subject_id", selectedTeacherAssignment.subject_id)
+          .eq("assessment_name", assessmentName.trim())
+          .eq("academic_year_id", academicYearId)
+          .limit(1).maybeSingle();
+        if (existingRes.error) throw existingRes.error;
+        if (existingRes.data) {
+          if (existingRes.data.entered_by !== profile.id || !["draft", "submitted"].includes(existingRes.data.status)) {
+            throw new Error(`A protected result already exists for ${fullName(student)}. Ask the administrator to review it.`);
+          }
+          const { error: updateError } = await supabase.from("school_results").update(values).eq("id", existingRes.data.id);
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase.from("school_results").insert(values);
+          if (insertError) throw insertError;
+        }
+      }
+      setMarksAssessmentName(assessmentName.trim());
+      notify(`Saved ${entered.length} student result${entered.length === 1 ? "" : "s"} as draft. The administrator can review and publish them.`);
+    } catch (e) {
+      fail(e instanceof Error ? e.message : "Unable to save student results.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const filteredStudents = useMemo(() => students.filter(s => s.grade === gradeFilter && s.section === sectionFilter && `${fullName(s)} ${s.admission_number}`.toLowerCase().includes(search.toLowerCase())), [students, gradeFilter, sectionFilter, search]);
 
@@ -392,7 +577,7 @@ export default function App() {
     finally { setBusy(false); }
   };
 
-  const signOut = async () => { if (!supabase) return; await supabase.auth.signOut(); setProfile(null); setPage("overview"); notify("You have signed out."); };
+  const signOut = async () => { if (!supabase) return; await supabase.auth.signOut(); setProfile(null); setPage("overview"); setTeacherAssignments([]); setTeacherRoster([]); setTeacherMarks({}); notify("You have signed out."); };
 
   const saveStudent = async (e: React.FormEvent) => {
     e.preventDefault(); if (!supabase || !profile || !academicYearId) return fail("Administrator session or current academic year is missing.");
@@ -512,18 +697,29 @@ export default function App() {
   if (!profile && showPublicLibrary) return <PyaAcademicHub profile={null} onBack={() => setShowPublicLibrary(false)} />;
 
   if (!profile) return <div className="pya-app"><style>{CSS}</style><div className="landing">
-    <nav className="landing-nav"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name">PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div><div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}><button className="outline-button" onClick={() => setShowPublicLibrary(true)}>DIGITAL LIBRARY</button><button className="outline-button" onClick={() => setShowLogin(true)}>STAFF SIGN IN</button></div></nav>
+    <nav className="landing-nav"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name">PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div><button className="outline-button" onClick={() => setShowLogin(true)}>STAFF SIGN IN</button></nav>
     <section className="hero"><div className="hero-photo" style={{ backgroundImage: `url("${HERO_IMAGES[heroIndex]}")`, opacity: 1 }}/><div className="hero-shade"/><div className="hero-content"><div className="hero-kicker">A LEGACY OF LEARNING AND LEADERSHIP</div><h1 className="serif">Inspiring Minds.<span className="gold-text">Building Futures.</span></h1><p className="hero-desc">Welcome to Prestigious Youth Academy — a community committed to academic excellence, creativity, character and the limitless potential of every learner.</p><div className="hero-actions"><button className="gold-button" onClick={() => setShowLogin(true)}>ENTER SCHOOL PORTAL <ArrowRight size={15} style={{ display: "inline", marginLeft: 8 }}/></button><button className="outline-button" onClick={() => setShowPublicLibrary(true)}>VISIT DIGITAL LIBRARY</button><a className="outline-button" href="#our-school" style={{ textDecoration: "none" }}>EXPLORE OUR ACADEMY</a></div></div><div className="hero-bottom"><div className="eyebrow">PRESTIGIOUS YOUTH ACADEMY • 2026/2027</div><div className="hero-dots">{HERO_IMAGES.map((im,i)=><button key={im} className={`hero-dot ${heroIndex===i?"active":""}`} onClick={()=>setHeroIndex(i)} aria-label={`Show image ${i+1}`}/>)}</div></div></section>
+    <section className="library-showcase" id="digital-library"><div className="library-showcase-inner"><div className="eyebrow">A WORLD OF KNOWLEDGE • PRESTIGIOUS YOUTH ACADEMY</div><h2 className="library-showcase-title">Welcome to the <span className="gold-text">Digital Library</span></h2><p className="library-showcase-copy">Explore books, reference materials, lesson notes, sample questions and past examination papers selected to support every learner’s academic journey.</p><button className="gold-button library-cta" onClick={() => setShowPublicLibrary(true)}>CLICK ME <ArrowRight size={15} style={{display:"inline",marginLeft:8}}/></button><div className="library-showcase-image-wrap"><img className="library-showcase-image" src="/library.jpg" alt="Prestigious Youth Academy Digital Library" loading="eager"/></div></div></section>
+    <section className="landing-section" style={{paddingTop:15,background:"#0d0f0e"}}><div className="eyebrow">LIFE AT OUR ACADEMY</div><h2 className="section-heading">Learning in <span className="gold-text">Action.</span></h2><div className="activity-strip">{HERO_IMAGES.slice(1).map((im,i)=><div className="activity-tile" key={im}><img src={im} alt="Academy activities"/><span>{["Student Activities","Learning Together","School Community","Beyond the Classroom"][i]}</span></div>)}</div></section>
     <section className="landing-section" id="our-school"><div className="eyebrow">THE PRESTIGIOUS EXPERIENCE</div><h2 className="section-heading">More Than a School.<br/><span className="gold-text">A Place to Become.</span></h2><p className="muted" style={{maxWidth:650,lineHeight:1.9,fontSize:14}}>We nurture curiosity, strengthen academic foundations and create opportunities for students to discover their talents, develop confidence and prepare for tomorrow.</p><div className="feature-grid"><article className="feature-card"><div className="feature-icon"><TrophyIcon/></div><h3>Academic Excellence</h3><p>Meaningful learning, strong foundations and a culture of achievement.</p></article><article className="feature-card"><div className="feature-icon"><BookOpen/></div><h3>Discovery & Innovation</h3><p>Science, technology and practical learning that bring ideas to life.</p></article><article className="feature-card"><div className="feature-icon"><ShieldCheck/></div><h3>Character & Leadership</h3><p>Respect, responsibility, teamwork and the confidence to lead.</p></article></div></section>
-    <section className="landing-section" style={{paddingTop:15,background:"#0d0f0e"}}><div className="eyebrow">LIFE AT OUR ACADEMY</div><h2 className="section-heading">Learning in <span className="gold-text">Action.</span></h2><div className="activity-strip">{HERO_IMAGES.slice(1).map((im,i)=><div className="activity-tile" key={im}><img src={im} alt="Academy activities"/><span>{["Student Activities","Learning Together","School Community","Beyond the Classroom"][i]}</span></div>)}</div></section><footer className="landing-footer"><span className="gold-text">PRESTIGIOUS YOUTH ACADEMY</span><span>Excellence • Discipline • Leadership</span><span>Academic Year 2026/2027</span></footer>
+<footer className="landing-footer"><span className="gold-text">PRESTIGIOUS YOUTH ACADEMY</span><span>Excellence • Discipline • Leadership</span><span>Academic Year 2026/2027</span></footer>
     {showLogin && <div className="login-overlay" onClick={()=>setShowLogin(false)}><div className="login-card" onClick={e=>e.stopPropagation()}><button onClick={()=>setShowLogin(false)} style={{float:"right",background:"none",border:0,color:"#aaa"}}><X/></button><div style={{textAlign:"center",padding:"10px 0 25px"}}><div className="brand-mark" style={{margin:"0 auto 15px",width:58,height:58}}><GraduationCap size={34}/></div><div className="eyebrow">SECURE STAFF ACCESS</div><h2 className="serif gold-text" style={{fontSize:28,margin:"9px 0"}}>School Portal</h2><p className="muted" style={{fontSize:11}}>Sign in with your registered administrator or teacher account.</p></div><form onSubmit={signIn}><label className="small-label">STAFF EMAIL</label><input className="login-input" type="email" required autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@example.com"/><div style={{marginTop:16}}><label className="small-label">PASSWORD</label><input className="login-input" type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password"/></div><button className="gold-button" disabled={busy} style={{width:"100%",marginTop:24}}>{busy?"SIGNING IN…":"SIGN IN SECURELY"}</button></form><p style={{color:"#77786f",fontSize:10,lineHeight:1.7,textAlign:"center",marginTop:18}}>Access is controlled by your active school staff role and assigned permissions.</p></div></div>}
     {(error||notice)&&<div style={{position:"fixed",bottom:15,left:15,right:15,zIndex:1000}} className={`notice ${error?"error":"success"}`}>{error||notice}<button onClick={()=>{setError("");setNotice("")}}><X size={15}/></button></div>}
   </div></div>;
 
-  return <div className="pya-app"><style>{CSS}</style><div className="portal"><aside className={`sidebar ${mobileNav?"open":""}`}><div className="side-brand"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name" style={{fontSize:10}}>PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div></div>{profile.role === "admin" && <><div className="side-label">ADMINISTRATION</div><button className={`side-link ${page==="overview"?"active":""}`} onClick={()=>{setPage("overview");setMobileNav(false)}}><LayoutDashboard size={17}/>Overview</button><button className={`side-link ${page==="students"?"active":""}`} onClick={()=>{setPage("students");setMobileNav(false)}}><Users size={17}/>Students & Enrollment</button><button className={`side-link ${page==="staff"?"active":""}`} onClick={()=>{setPage("staff");setMobileNav(false)}}><ShieldCheck size={17}/>Staff & Academics</button></>}<div className="side-label">ACADEMIC TOOLS</div><button className={`side-link ${page==="library"?"active":""}`} onClick={()=>{setPage("library");setMobileNav(false)}}><BookOpen size={17}/>Digital Library & Exams</button><div className="side-label">ACADEMIC YEAR</div><div style={{margin:"0 8px",padding:13,background:"#ffffff08",border:"1px solid #ffffff12",borderRadius:8}}><div style={{color:"#e4c77d",fontSize:12,fontWeight:800}}>2026 / 2027</div><div style={{color:"#77786f",fontSize:10,marginTop:5}}>Current session</div></div><div className="side-bottom"><div style={{display:"flex",alignItems:"center",gap:10,padding:"5px 8px 15px"}}><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div><div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{color:"#d4b45f",fontSize:10,marginTop:3}}>{profile.role === "admin" ? "Administrator" : "Teacher"}</div></div></div><button className="side-link" onClick={signOut}><LogOut size={17}/>Sign out</button></div></aside>
-    <div className="portal-main"><header className="topbar"><div style={{display:"flex",alignItems:"center",gap:13}}><button className="mobile-menu" onClick={()=>setMobileNav(v=>!v)}><Menu size={19}/></button><div><div className="eyebrow" style={{fontSize:8}}>PRESTIGIOUS YOUTH ACADEMY</div><div style={{fontSize:13,fontWeight:800,marginTop:4}}>{page==="overview"?"Administrator Overview":page==="students"?"Student Management":page==="staff"?"Staff & Academic Setup":"Digital Library & Exam Workspace"}</div></div></div><div className="topbar-user">{profile.role === "admin" && <button onClick={()=>void loadSchoolData()} title="Refresh records" style={{border:"1px solid var(--line)",color:"#dfc579",background:"#ffffff06",padding:9,borderRadius:7}}><RefreshCw size={15}/></button>}<div style={{textAlign:"right"}}><div style={{fontSize:11,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{fontSize:9,color:"#d9b45b",marginTop:3}}>{profile.role === "admin" ? "Administrator" : "Teacher"}</div></div><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div></div></header>
+  return <div className="pya-app"><style>{CSS}</style><div className="portal"><aside className={`sidebar ${mobileNav?"open":""}`}><div className="side-brand"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name" style={{fontSize:10}}>PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div></div>{profile.role === "admin" && <><div className="side-label">ADMINISTRATION</div><button className={`side-link ${page==="overview"?"active":""}`} onClick={()=>{setPage("overview");setMobileNav(false)}}><LayoutDashboard size={17}/>Overview</button><button className={`side-link ${page==="students"?"active":""}`} onClick={()=>{setPage("students");setMobileNav(false)}}><Users size={17}/>Students & Enrollment</button><button className={`side-link ${page==="staff"?"active":""}`} onClick={()=>{setPage("staff");setMobileNav(false)}}><ShieldCheck size={17}/>Staff & Academics</button></>}{profile.role === "teacher" && <><div className="side-label">TEACHING WORKSPACE</div><button className={`side-link ${page==="results"?"active":""}`} onClick={()=>{setPage("results");setMobileNav(false)}}><Users size={17}/>Student Results</button></>}<div className="side-label">ACADEMIC TOOLS</div><button className={`side-link ${page==="library"?"active":""}`} onClick={()=>{setPage("library");setMobileNav(false)}}><BookOpen size={17}/>Digital Library & Exams</button><div className="side-label">ACADEMIC YEAR</div><div style={{margin:"0 8px",padding:13,background:"#ffffff08",border:"1px solid #ffffff12",borderRadius:8}}><div style={{color:"#e4c77d",fontSize:12,fontWeight:800}}>2026 / 2027</div><div style={{color:"#77786f",fontSize:10,marginTop:5}}>Current session</div></div><div className="side-bottom"><div style={{display:"flex",alignItems:"center",gap:10,padding:"5px 8px 15px"}}><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div><div style={{minWidth:0}}><div style={{fontSize:12,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{color:"#d4b45f",fontSize:10,marginTop:3}}>{profile.role === "admin" ? "Administrator" : "Teacher"}</div></div></div><button className="side-link" onClick={signOut}><LogOut size={17}/>Sign out</button></div></aside>
+    <div className="portal-main"><header className="topbar"><div style={{display:"flex",alignItems:"center",gap:13}}><button className="mobile-menu" onClick={()=>setMobileNav(v=>!v)}><Menu size={19}/></button><div><div className="eyebrow" style={{fontSize:8}}>PRESTIGIOUS YOUTH ACADEMY</div><div style={{fontSize:13,fontWeight:800,marginTop:4}}>{page==="overview"?"Administrator Overview":page==="students"?"Student Management":page==="staff"?"Staff & Academic Setup":page==="results"?"Student Results & Assessment":"Digital Library & Exam Workspace"}</div></div></div><div className="topbar-user">{profile.role === "admin" ? <button onClick={()=>void loadSchoolData()} title="Refresh records" style={{border:"1px solid var(--line)",color:"#dfc579",background:"#ffffff06",padding:9,borderRadius:7}}><RefreshCw size={15}/></button> : <button onClick={()=>void loadTeacherWorkspace()} title="Refresh assigned classes" style={{border:"1px solid var(--line)",color:"#dfc579",background:"#ffffff06",padding:9,borderRadius:7}}><RefreshCw size={15}/></button>}<div style={{textAlign:"right"}}><div style={{fontSize:11,fontWeight:800}}>{profile.full_name||profile.email}</div><div style={{fontSize:9,color:"#d9b45b",marginTop:3}}>{profile.role === "admin" ? "Administrator" : "Teacher"}</div></div><div className="avatar">{(profile.full_name||profile.email).charAt(0).toUpperCase()}</div></div></header>
     <main className="content">{(error||notice)&&<div className={`notice ${error?"error":"success"}`}><span style={{display:"flex",alignItems:"center",gap:9}}>{error?<AlertCircle size={17}/>:<CheckCircle2 size={17}/>} {error||notice}</span><button onClick={()=>{setError("");setNotice("")}} style={{background:"none",border:0,color:"inherit"}}><X size={16}/></button></div>}
-    {page==="library"&&<PyaAcademicHub profile={profile} onBack={()=>setPage(profile.role === "admin" ? "overview" : "library")} onSignOut={signOut}/> }
+    {page==="library"&&<PyaAcademicHub profile={profile} onBack={()=>setPage(profile.role === "admin" ? "overview" : "results")} onSignOut={signOut}/> }
+    {profile.role === "teacher" && page==="results"&&<>
+      <section className="teacher-hero"><div className="eyebrow">TEACHER WORKSPACE • 2026/2027</div><h1 className="serif" style={{fontSize:"clamp(27px,4vw,40px)",margin:"12px 0 8px"}}>Welcome, <span className="gold-text">{profile.full_name || "Teacher"}</span></h1><p style={{color:"#b8b7ad",fontSize:13,lineHeight:1.8,maxWidth:650,margin:0}}>Your assigned classes and subjects are ready. Select a class, prepare an assessment and enter student marks securely.</p><div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:20}}><div className="stat-pill">{teacherAssignments.length} assigned class-subjects</div><div className="stat-pill">{teacherRoster.length} enrolled students</div></div></section>
+      <div className="stats-grid"><div className="stat-card"><div className="stat-top">Assigned Subjects <BookOpen size={17}/></div><div className="stat-value">{teacherAssignments.length}</div><div className="stat-note">Your active teaching allocations</div></div><div className="stat-card"><div className="stat-top">Students in Your Classes <Users size={17}/></div><div className="stat-value">{teacherRoster.length}</div><div className="stat-note">Current academic year</div></div><div className="stat-card"><div className="stat-top">Academic Session <LayoutDashboard size={17}/></div><div className="stat-value" style={{fontSize:22}}>2026/27</div><div className="stat-note">Current school year</div></div><div className="stat-card"><div className="stat-top">Results Workspace <CheckCircle2 size={17}/></div><div className="stat-value" style={{fontSize:22}}>Ready</div><div className="stat-note">Draft marks saved for admin review</div></div></div>
+      {teacherWorkspaceLoading ? <section className="panel" style={{textAlign:"center",padding:35,color:"#d9b45b"}}>Loading your assigned classes and student register…</section> : !teacherAssignments.length ? <section className="panel" style={{textAlign:"center",padding:38}}><div className="feature-icon" style={{margin:"0 auto 15px"}}><BookOpen size={25}/></div><h2 className="panel-title">No teaching assignment yet</h2><p className="muted" style={{fontSize:12,lineHeight:1.8}}>Your administrator must assign you to a grade, section and subject. Once assigned, your student register and results entry form will appear here.</p></section> : <>
+        <section className="panel" style={{marginBottom:17}}><h2 className="panel-title">Assessment Setup</h2><div className="result-toolbar"><div><label className="small-label">YOUR ASSIGNED CLASS & SUBJECT</label><select className="field" value={selectedTeacherAssignmentId} onChange={e=>setSelectedTeacherAssignmentId(e.target.value)}>{teacherAssignments.map(a=><option key={a.id} value={a.id}>Grade {a.section.grade} • Section {a.section.section_name} — {a.subject.name}</option>)}</select></div><div><label className="small-label">ASSESSMENT NAME *</label><input className="field" value={assessmentName} onChange={e=>{setAssessmentName(e.target.value);if(e.target.value.trim()!==marksAssessmentName.trim())setTeacherMarks({});}} placeholder="e.g. Midterm Examination"/><button type="button" className="outline-button" style={{padding:"8px 11px",marginTop:8,fontSize:9}} onClick={()=>setMarksAssessmentName(assessmentName.trim())}>LOAD SAVED MARKS</button></div><div><label className="small-label">MAXIMUM SCORE *</label><input className="field" type="number" min="1" step="0.5" value={assessmentMaxScore} onChange={e=>setAssessmentMaxScore(e.target.value)}/></div></div><p className="muted" style={{fontSize:11,lineHeight:1.7,marginTop:15}}>Marks are saved as drafts. The administrator reviews and publishes results before they become official student records.</p></section>
+        <form onSubmit={saveTeacherResults} className="panel"><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:18}}><div><div className="eyebrow">GRADE {selectedTeacherAssignment?.section.grade || "—"} • SECTION {selectedTeacherAssignment?.section.section_name || "—"}</div><h2 className="panel-title" style={{margin:"7px 0 0"}}>Student Results Register</h2></div><span className="stat-pill">{selectedTeacherStudents.length} students</span></div><div className="table-wrap"><table style={{minWidth:760}}><thead><tr><th>Admission No.</th><th>Student Name</th><th>Score / {assessmentMaxScore || "100"}</th><th>Teacher Comment</th></tr></thead><tbody>{selectedTeacherStudents.map(student=><tr key={student.id}><td style={{color:"#e6c978",fontWeight:800}}>{student.admission_number}</td><td style={{fontWeight:800,color:"#f0e8d4"}}>{fullName(student)}</td><td><input className="result-score-input" type="number" min="0" max={Number(assessmentMaxScore)||100} step="0.5" value={teacherMarks[student.id]?.score ?? ""} readOnly={teacherMarks[student.id]?.locked} onChange={e=>setTeacherMarks(prev=>({...prev,[student.id]:{score:e.target.value,comment:prev[student.id]?.comment||""}}))} placeholder="0.0" aria-label={`Score for ${fullName(student)}`}/></td><td><input className="result-comment-input" value={teacherMarks[student.id]?.comment ?? ""} readOnly={teacherMarks[student.id]?.locked} onChange={e=>setTeacherMarks(prev=>({...prev,[student.id]:{score:prev[student.id]?.score||"",comment:e.target.value}}))} placeholder="Optional feedback" aria-label={`Comment for ${fullName(student)}`}/></td></tr>)}{!selectedTeacherStudents.length&&<tr><td colSpan={4} style={{textAlign:"center",padding:30}}>No active students are enrolled in this assigned section.</td></tr>}</tbody></table></div><div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",flexWrap:"wrap",marginTop:20}}><span className="muted" style={{fontSize:11}}>{teacherResultsLoading?"Loading saved marks…":"Enter marks for the students listed above."}</span><button className="gold-button" disabled={busy||teacherResultsLoading||!selectedTeacherStudents.length}>{busy?"SAVING RESULTS…":"SAVE STUDENT RESULTS"} <ArrowRight size={14} style={{display:"inline",marginLeft:7}}/></button></div></form>
+      </>}
+      <section className="panel" style={{marginTop:18,display:"flex",justifyContent:"space-between",gap:18,alignItems:"center",flexWrap:"wrap"}}><div><div className="eyebrow">TEACHING RESOURCES</div><h2 className="panel-title" style={{margin:"7px 0"}}>Digital Library & Examination Workspace</h2><p className="muted" style={{fontSize:11,margin:0}}>Access learning resources, upload materials and submit examination papers for review.</p></div><button className="outline-button" onClick={()=>setPage("library")}>OPEN DIGITAL LIBRARY <ArrowRight size={14} style={{display:"inline",marginLeft:7}}/></button></section>
+    </>}
     {profile.role === "admin" && page==="overview"&&<><section className="welcome-banner"><div className="eyebrow">EXECUTIVE WORKSPACE</div><h1 className="serif" style={{fontSize:"clamp(27px,4vw,39px)",margin:"12px 0 8px"}}>Welcome, <span className="gold-text">{profile.full_name||"Administrator"}</span></h1><p style={{color:"#aaa99e",fontSize:12,lineHeight:1.8,maxWidth:570}}>Manage official student records and class enrollment for the 2026/2027 academic year.</p><button className="gold-button" onClick={()=>setPage("students")}>MANAGE STUDENTS <ArrowRight size={13} style={{display:"inline",marginLeft:6}}/></button></section><div className="stats-grid"><div className="stat-card"><div className="stat-top">Registered Students <Users size={17}/></div><div className="stat-value">{loading?"—":students.length}</div><div className="stat-note">Student identity records</div></div><div className="stat-card"><div className="stat-top">Grade Levels <BookOpen size={17}/></div><div className="stat-value">12</div><div className="stat-note">Grade 1 through 12</div></div><div className="stat-card"><div className="stat-top">Class Sections <LayoutDashboard size={17}/></div><div className="stat-value">{sections.length||60}</div><div className="stat-note">Five sections per grade</div></div><div className="stat-card"><div className="stat-top">Planned Capacity <Users size={17}/></div><div className="stat-value">2,400</div><div className="stat-note">40 students per section</div></div></div><section className="panel"><h3 className="panel-title">System readiness</h3><p className="muted" style={{fontSize:12,lineHeight:1.8}}>Administrator authentication is connected to Supabase. Student records and class enrollments are stored in the new school database. Teacher and parent profile management, subject setup, teacher-class assignments and parent-child links are now available in Staff & Academic Setup. Digital Library uploads, teacher exam submissions and administrator-only AI exam reviews are available in Digital Library & Exams.</p><button className="outline-button" onClick={()=>setPage("students")}>OPEN STUDENT REGISTER</button></section></>}
     {profile.role === "admin" && page==="students"&&<><div style={{marginBottom:20}}><div className="eyebrow">ACADEMIC RECORDS • 2026/2027</div><h1 className="page-title" style={{marginTop:9}}>Student Management</h1><p className="page-sub">Register, update, allocate and remove official student records.</p></div><div className="stats-grid"><div className="stat-card"><div className="stat-top">Total Students <Users size={17}/></div><div className="stat-value">{students.length}</div><div className="stat-note">All student records</div></div><div className="stat-card"><div className="stat-top">Grade Levels <BookOpen size={17}/></div><div className="stat-value">12</div><div className="stat-note">Grade 1–12</div></div><div className="stat-card"><div className="stat-top">Class Sections <LayoutDashboard size={17}/></div><div className="stat-value">{sections.length}</div><div className="stat-note">Available in current year</div></div><div className="stat-card"><div className="stat-top">Current Capacity <Users size={17}/></div><div className="stat-value">{students.length}/2400</div><div className="stat-note">Planned school capacity</div></div></div>
     <section className="panel" style={{marginBottom:16}}><h3 className="panel-title"><Plus size={17} style={{display:"inline",marginRight:8}}/>{editing?"Update Student Record":"Register a Student"}</h3><form onSubmit={saveStudent} className="form-grid"><div><label className="small-label">FIRST NAME *</label><input className="field" required value={form.first_name} onChange={e=>setForm({...form,first_name:e.target.value})} placeholder="First name"/></div><div><label className="small-label">MIDDLE NAME</label><input className="field" value={form.middle_name} onChange={e=>setForm({...form,middle_name:e.target.value})} placeholder="Middle name"/></div><div><label className="small-label">LAST NAME *</label><input className="field" required value={form.last_name} onChange={e=>setForm({...form,last_name:e.target.value})} placeholder="Last name"/></div><div><label className="small-label">DATE OF BIRTH</label><input className="field" type="date" value={form.date_of_birth} onChange={e=>setForm({...form,date_of_birth:e.target.value})}/></div><div><label className="small-label">GENDER</label><select className="field" value={form.gender} onChange={e=>setForm({...form,gender:e.target.value})}><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div><div><label className="small-label">PHONE</label><input className="field" type="tel" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="Student/guardian phone"/></div><div><label className="small-label">GRADE *</label><select className="field" value={form.grade} onChange={e=>setForm({...form,grade:Number(e.target.value)})}>{Array.from({length:12},(_,i)=>i+1).map(g=><option key={g} value={g}>Grade {g}</option>)}</select></div><div><label className="small-label">SECTION *</label><select className="field" value={form.section} onChange={e=>setForm({...form,section:e.target.value})}>{sections.filter(s=>s.grade===Number(form.grade)).map(s=><option key={s.id} value={s.section_name}>Section {s.section_name}</option>)}</select></div><div className="full"><label className="small-label">ADDRESS</label><input className="field" value={form.address} onChange={e=>setForm({...form,address:e.target.value})} placeholder="Student address"/></div><div className="full" style={{display:"flex",gap:9,flexWrap:"wrap"}}><button className="gold-button" disabled={busy}>{busy?(editing?"UPDATING…":"REGISTERING…"):(editing?"SAVE CHANGES":"REGISTER STUDENT +")}</button>{editing&&<button type="button" className="outline-button" onClick={()=>{setEditing(null);setForm(EMPTY_FORM)}}>CANCEL EDIT</button>}</div></form></section>
