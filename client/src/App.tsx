@@ -1,3 +1,67 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard, Menu, ArrowRight, Trash2, Pencil, ShieldCheck } from "lucide-react";
+import { supabase, hasSupabase } from "./supabase";
+import PyaAcademicHub from "./PyaAcademicHub";
+import StaffAccountManager from "./StaffAccountManager";
+
+type Profile = { id: string; email: string; full_name: string; role: string; is_active: boolean };
+type Section = { id: string; grade: number; section_name: string; academic_year_id: string };
+type Student = { id: string; admission_number: string; first_name: string; middle_name: string | null; last_name: string; date_of_birth: string | null; gender: string | null; phone: string | null; address: string | null; is_active: boolean; grade: number; section: string; enrollment_id: string | null };
+type StudentForm = { first_name: string; middle_name: string; last_name: string; date_of_birth: string; gender: string; phone: string; address: string; grade: number; section: string };
+type Page = "overview" | "students" | "staff" | "library";
+type SchoolUser = { id: string; email: string; full_name: string; role: string; is_active: boolean };
+type Subject = { id: string; name: string; code: string | null; grade: number };
+type Assignment = { id: string; teacher_id: string; section_id: string; subject_id: string; is_active: boolean };
+const HERO_IMAGES = ["/prestpro.png", "/prest22.jpg", "/prest23.jpg", "/prest9.jpg", "/prest7.jpg"];
+const EMPTY_FORM: StudentForm = { first_name: "", middle_name: "", last_name: "", date_of_birth: "", gender: "", phone: "", address: "", grade: 9, section: "A" };
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
+
+:root {
+  --gold:#d9b45b;
+  --gold2:#f5df9a;
+  --gold3:#936b24;
+  --black:#080909;
+  --panel:#111312;
+  --panel2:#171917;
+  --muted:#92948d;
+  --line:rgba(217,180,91,.20);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--black); color:#f6f3eb; font-family:'DM Sans',sans-serif; }
+button,input,select,textarea { font:inherit; }
+button { cursor:pointer; }
+.pya-app { min-height:100vh; background:var(--black); color:#f6f3eb; }
+.gold-text {
+  background:linear-gradient(110deg,#fff1bb 0%,#d8b25a 35%,#f7e4a3 60%,#a77a2b 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.gold-button {
+  background:linear-gradient(110deg,#f2d98d,#c49a43 55%,#936b24);
+  color:#100e09; border:1px solid rgba(255,231,166,.55);
+  border-radius:8px; padding:13px 20px; font-weight:800;
+  letter-spacing:.04em; transition:.25s; box-shadow:0 7px 25px rgba(196,154,67,.13);
+}
+.gold-button:hover { transform:translateY(-2px); box-shadow:0 10px 30px rgba(196,154,67,.3); }
+.outline-button {
+  border:1px solid rgba(230,199,121,.5); color:#e7cc83;
+  background:rgba(255,255,255,.025); border-radius:8px;
+  padding:12px 19px; font-weight:700; transition:.2s;
+}
+.outline-button:hover { background:rgba(217,180,91,.12); }
+.eyebrow { color:var(--gold); font-size:10px; letter-spacing:4px; font-weight:800; text-transform:uppercase; }
+.serif { font-family:'Playfair Display',Georgia,serif; }
+.landing { min-height:100vh; background:#080909; overflow:hidden; }
+.landing-nav {
+  position:absolute; z-index:20; top:0; left:0; right:0; height:86px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 clamp(20px,6vw,90px); border-bottom:1px solid rgba(217,180,91,.2);
+  background:linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,.12));
+}
+.brand { display:flex; align-items:center; gap:13px; }
+.brand-mark {
+  height:46px; width:46px; display:grid; place-items:center; border-radius:12px;
+  color:#161109; background:linear-gradient(140deg,#f8e7aa,#b98b35);
   box-shadow:0 0 25px rgba(217,180,91,.2);
 }
 .brand-name { font-size:13px; letter-spacing:2px; font-weight:800; color:#f0d68d; }
@@ -86,6 +150,57 @@
   background:transparent; text-align:left; font-size:12px; font-weight:700;
   transition:.2s; margin-bottom:5px;
 }
+.side-link:hover { color:#f1d78f; background:#ffffff08; }
+.side-link.active {
+  color:#f0d78f; background:linear-gradient(90deg,rgba(217,180,91,.16),rgba(217,180,91,.035));
+  border-color:rgba(217,180,91,.22); box-shadow:inset 3px 0 #d9b45b;
+}
+.side-bottom { margin-top:auto; border-top:1px solid var(--line); padding-top:18px; }
+.portal-main { flex:1; min-width:0; }
+.topbar {
+  height:76px; border-bottom:1px solid var(--line); background:#0d0f0e;
+  display:flex; justify-content:space-between; align-items:center; padding:0 30px;
+  position:sticky; top:0; z-index:20;
+}
+.topbar-user { display:flex; align-items:center; gap:12px; }
+.avatar {
+  width:37px; height:37px; border-radius:50%; display:grid; place-items:center;
+  background:linear-gradient(140deg,#efd78e,#936b24); color:#17130a; font-weight:900;
+}
+.content { max-width:1500px; padding:30px; margin:auto; }
+.page-title { font-family:'Playfair Display',Georgia,serif; font-size:29px; margin:0; }
+.page-sub { color:#85867d; font-size:12px; margin-top:7px; }
+.welcome-banner {
+  position:relative; overflow:hidden; border:1px solid rgba(217,180,91,.32);
+  background:radial-gradient(ellipse at 85% 50%,rgba(188,146,55,.22),transparent 42%),linear-gradient(110deg,#1a1b16,#10120f);
+  border-radius:13px; padding:30px; margin-bottom:24px;
+}
+.welcome-banner:after { content:'✦'; position:absolute; right:55px; top:5px; font-size:120px; color:#d9b45b12; }
+.stats-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:22px 0; }
+.stat-card {
+  border:1px solid var(--line); border-radius:10px; padding:19px;
+  background:linear-gradient(145deg,#171916,#101210); min-width:0;
+}
+.stat-top { display:flex; justify-content:space-between; color:#9b9b91; font-size:11px; align-items:center; }
+.stat-icon { color:#d9b45b; background:rgba(217,180,91,.1); border-radius:8px; padding:9px; }
+.stat-value { font-size:29px; font-weight:800; color:#f0d68d; margin-top:17px; }
+.stat-note { font-size:10px; color:#777970; margin-top:4px; }
+.panel {
+  background:linear-gradient(145deg,#151714,#101210); border:1px solid var(--line);
+  border-radius:11px; padding:22px; min-width:0;
+}
+.panel-title { color:#ead18c; font-family:'Playfair Display',Georgia,serif; font-size:19px; margin:0 0 18px; }
+.panel-grid { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; min-width:900px; font-size:11px; }
+th { color:#e7ca7b; text-align:left; padding:13px 10px; background:#1b1d18; white-space:nowrap; }
+td { padding:12px 10px; border-bottom:1px solid #292b25; color:#d0d0c7; }
+tbody tr:hover { background:#ffffff06; }
+.table-input { width:55px; background:#090b09; border:1px solid #36372f; border-radius:5px; padding:7px 4px; color:#f4dfa0; text-align:center; }
+.notice { padding:13px 16px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; }
+.notice.error { color:#ffb6ae; background:#421b1b66; border:1px solid #8e373766; }
+.notice.success { color:#a9e6bd; background:#123b2366; border:1px solid #287b4766; }
+.muted { color:#8b8d83; }
   .brand-sub { font-size:7px; letter-spacing:1px; }
   .brand-mark { width:39px; height:39px; }
   .hero { min-height:720px; height:90vh; }
@@ -155,6 +270,28 @@ export default function App() {
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "", grade: 9 });
   const [assignmentForm, setAssignmentForm] = useState({ teacher_id: "", section_id: "", subject_id: "" });
   const [parentForm, setParentForm] = useState({ parent_id: "", student_id: "" });
+
+  const notify = (s: string) => { setNotice(s); setError(""); };
+  const fail = (s: string) => { setError(s); setNotice(""); };
+
+  useEffect(() => { const timer = window.setInterval(() => setHeroIndex(i => (i + 1) % HERO_IMAGES.length), 5500); return () => window.clearInterval(timer); }, []);
+
+  const loadSchoolData = useCallback(async () => {
+    if (!supabase || !hasSupabase) { fail("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Vercel environment variables."); return; }
+    setLoading(true); setError("");
+    try {
+      const yearRes = await supabase.from("school_academic_years").select("id,name").eq("is_current", true).maybeSingle();
+      if (yearRes.error) throw yearRes.error;
+      if (!yearRes.data) throw new Error("No current academic year is configured. Set 2026/2027 as the current year in school_academic_years.");
+      setAcademicYearId(yearRes.data.id);
+      const [sectionRes, studentRes, usersRes, subjectsRes, assignmentsRes, linksRes] = await Promise.all([
+        supabase.from("school_sections").select("id,grade,section_name,academic_year_id").eq("academic_year_id", yearRes.data.id).order("grade").order("section_name"),
+        supabase.from("school_students").select("id,admission_number,first_name,middle_name,last_name,date_of_birth,gender,phone,address,is_active").order("last_name").order("first_name"),
+        supabase.from("school_profiles").select("id,email,full_name,role,is_active").in("role", ["teacher", "parent"]).order("full_name"),
+        supabase.from("school_subjects").select("id,name,code,grade").order("grade").order("name"),
+        supabase.from("school_teacher_assignments").select("id,teacher_id,section_id,subject_id,is_active").eq("is_active", true),
+        supabase.from("school_parent_student_links").select("id,parent_id,student_id")
+      ]);
       try {
         const { data, error: profileError } = await supabase!.from("school_profiles")
           .select("id,email,full_name,role,is_active")
@@ -242,13 +379,14 @@ export default function App() {
     try {
       const { error: saveError } = await supabase.from("school_subjects").insert({ name: subjectForm.name.trim(), code: subjectForm.code.trim() || null, grade: Number(subjectForm.grade) });
       if (saveError) throw saveError;
-      setSubjectForm({ name: "", code: "", grade: 9 });
+setSubjectForm({ name: "", code: "", grade: 9 });
       notify("Subject added to the school curriculum.");
       await loadSchoolData();
     } catch (e) { fail(e instanceof Error ? e.message : "Unable to add subject."); }
     finally { setBusy(false); }
   };
-const saveAssignment = async (e: React.FormEvent) => {
+
+  const saveAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
     if (!assignmentForm.teacher_id || !assignmentForm.section_id || !assignmentForm.subject_id) return fail("Select a teacher, class section and subject.");
@@ -344,6 +482,5 @@ const saveAssignment = async (e: React.FormEvent) => {
 }
 
 function TrophyIcon() { return <GraduationCap size={29}/>; }
-
 
 
