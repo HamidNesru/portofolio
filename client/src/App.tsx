@@ -376,7 +376,8 @@ export default function App() {
       const yearRes = await supabase.from("school_academic_years").select("id,name").eq("is_current", true).maybeSingle();
       if (yearRes.error) throw yearRes.error;
       if (!yearRes.data) throw new Error("No current academic year is configured.");
-      setAcademicYearId(yearRes.data.id);
+      const currentYearId = yearRes.data.id;
+      setAcademicYearId(currentYearId);
       const assignmentRes = await supabase.from("school_teacher_assignments")
         .select("id,teacher_id,section_id,subject_id,is_active")
         .eq("teacher_id", profile.id).eq("is_active", true);
@@ -393,7 +394,7 @@ export default function App() {
       const [sectionsRes, subjectsRes, enrollmentsRes] = await Promise.all([
         supabase.from("school_sections").select("id,grade,section_name,academic_year_id").in("id", sectionIds),
         supabase.from("school_subjects").select("id,name,code,grade").in("id", subjectIds),
-        supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", yearRes.data.id).in("section_id", sectionIds)
+        supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", currentYearId).in("section_id", sectionIds)
       ]);
       for (const result of [sectionsRes, subjectsRes, enrollmentsRes]) if (result.error) throw result.error;
       const sectionRows = (sectionsRes.data || []) as Section[];
@@ -411,7 +412,7 @@ export default function App() {
       const mappedAssignments: TeacherAssignment[] = assignmentRows.flatMap(a => {
         const section = sectionRows.find(row => row.id === a.section_id);
         const subject = subjectRows.find(row => row.id === a.subject_id);
-        return section && subject && section.academic_year_id === yearRes.data.id ? [{ ...a, section, subject }] : [];
+        return section && subject && section.academic_year_id === currentYearId ? [{ ...a, section, subject }] : [];
       });
       const mappedRoster: TeacherRosterStudent[] = studentRows.flatMap(student => {
         const enrollment = enrollRows.find((row: any) => row.student_id === student.id);
