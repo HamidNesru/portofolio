@@ -3,6 +3,7 @@ import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, C
 import { supabase, hasSupabase } from "./supabase";
 import PyaAcademicHub from "./PyaAcademicHub";
 import StaffAccountManager from "./StaffAccountManager";
+import AchievementCard from "./AchievementCard";
 
 type Profile = { id: string; email: string; full_name: string; role: string; is_active: boolean };
 type Section = { id: string; grade: number; section_name: string; academic_year_id: string };
@@ -700,6 +701,7 @@ export default function App() {
   if (!profile) return <div className="pya-app"><style>{CSS}</style><div className="landing">
     <nav className="landing-nav"><div className="brand"><div className="brand-mark"><GraduationCap size={25}/></div><div><div className="brand-name">PRESTIGIOUS</div><div className="brand-sub">YOUTH ACADEMY</div></div></div><button className="outline-button" onClick={() => setShowLogin(true)}>STAFF SIGN IN</button></nav>
     <section className="hero"><div className="hero-photo" style={{ backgroundImage: `url("${HERO_IMAGES[heroIndex]}")`, opacity: 1 }}/><div className="hero-shade"/><div className="hero-content"><div className="hero-kicker">A LEGACY OF LEARNING AND LEADERSHIP</div><h1 className="serif">Inspiring Minds.<span className="gold-text">Building Futures.</span></h1><p className="hero-desc">Welcome to Prestigious Youth Academy — a community committed to academic excellence, creativity, character and the limitless potential of every learner.</p><div className="hero-actions"><button className="gold-button" onClick={() => setShowLogin(true)}>ENTER SCHOOL PORTAL <ArrowRight size={15} style={{ display: "inline", marginLeft: 8 }}/></button><button className="outline-button" onClick={() => setShowPublicLibrary(true)}>VISIT DIGITAL LIBRARY</button><a className="outline-button" href="#our-school" style={{ textDecoration: "none" }}>EXPLORE OUR ACADEMY</a></div></div><div className="hero-bottom"><div className="eyebrow">PRESTIGIOUS YOUTH ACADEMY • 2026/2027</div><div className="hero-dots">{HERO_IMAGES.map((im,i)=><button key={im} className={`hero-dot ${heroIndex===i?"active":""}`} onClick={()=>setHeroIndex(i)} aria-label={`Show image ${i+1}`}/>)}</div></div></section>
+    <AchievementCard/>
     <section className="library-showcase" id="digital-library"><div className="library-showcase-inner"><div className="eyebrow">A WORLD OF KNOWLEDGE • PRESTIGIOUS YOUTH ACADEMY</div><h2 className="library-showcase-title">Welcome to the <span className="gold-text">Digital Library</span></h2><p className="library-showcase-copy">Explore books, reference materials, lesson notes, sample questions and past examination papers selected to support every learner’s academic journey.</p><button className="gold-button library-cta" onClick={() => setShowPublicLibrary(true)}>CLICK ME <ArrowRight size={15} style={{display:"inline",marginLeft:8}}/></button><div className="library-showcase-image-wrap"><img className="library-showcase-image" src="/library.jpg" alt="Prestigious Youth Academy Digital Library" loading="eager"/></div></div></section>
     <section className="landing-section" style={{paddingTop:15,background:"#0d0f0e"}}><div className="eyebrow">LIFE AT OUR ACADEMY</div><h2 className="section-heading">Learning in <span className="gold-text">Action.</span></h2><div className="activity-strip">{HERO_IMAGES.slice(1).map((im,i)=><div className="activity-tile" key={im}><img src={im} alt="Academy activities"/><span>{["Student Activities","Learning Together","School Community","Beyond the Classroom"][i]}</span></div>)}</div></section>
     <section className="landing-section" id="our-school"><div className="eyebrow">THE PRESTIGIOUS EXPERIENCE</div><h2 className="section-heading">More Than a School.<br/><span className="gold-text">A Place to Become.</span></h2><p className="muted" style={{maxWidth:650,lineHeight:1.9,fontSize:14}}>We nurture curiosity, strengthen academic foundations and create opportunities for students to discover their talents, develop confidence and prepare for tomorrow.</p><div className="feature-grid"><article className="feature-card"><div className="feature-icon"><TrophyIcon/></div><h3>Academic Excellence</h3><p>Meaningful learning, strong foundations and a culture of achievement.</p></article><article className="feature-card"><div className="feature-icon"><BookOpen/></div><h3>Discovery & Innovation</h3><p>Science, technology and practical learning that bring ideas to life.</p></article><article className="feature-card"><div className="feature-icon"><ShieldCheck/></div><h3>Character & Leadership</h3><p>Respect, responsibility, teamwork and the confidence to lead.</p></article></div></section>
@@ -737,8 +739,3 @@ export default function App() {
 }
 
 function TrophyIcon() { return <GraduationCap size={29}/>; }
-
-
-
-
-
