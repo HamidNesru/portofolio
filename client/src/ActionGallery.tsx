@@ -1,78 +1,83 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Fixed order (not random). Files live in client/public.
 const PHOTOS = ["/g6.jpg", "/g7.jpg", "/g1.jpg", "/g5.jpg", "/g4.jpg", "/g2.jpg"];
+const N = PHOTOS.length;
+const SECONDS = 4.2; // time each photo stays in the spotlight
 
 const GALLERY_CSS = `
-.ag-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; max-width:1120px; margin:34px auto 0; padding:26px 0; }
-.ag-card { position:relative; aspect-ratio:4/3; border-radius:14px; overflow:visible; border:1px solid rgba(217,180,91,.35); background:#050606;
-  transition:transform .55s cubic-bezier(.2,.8,.2,1), box-shadow .55s ease, border-color .55s ease; will-change:transform; }
-.ag-card img { width:100%; height:100%; object-fit:cover; display:block; border-radius:13px; }
-.ag-card.on { transform:scale(1.55); z-index:5; border-color:#f5df9a; box-shadow:0 30px 80px rgba(0,0,0,.75),0 0 40px rgba(217,180,91,.35); }
-@media(max-width:700px){ .ag-grid { grid-template-columns:repeat(2,1fr); gap:12px; } .ag-card.on { transform:scale(1.3); } }
-@media (prefers-reduced-motion: reduce){ .ag-card { transition:none; } }
+.cf { position:relative; max-width:1180px; margin:30px auto 0; padding:10px 0 0; }
+.cf-stage { position:relative; height:clamp(260px,46vw,520px); perspective:1500px; perspective-origin:50% 45%; touch-action:pan-y; }
+.cf-glow { position:absolute; left:50%; top:46%; width:60%; height:70%; transform:translate(-50%,-50%); background:radial-gradient(ellipse,rgba(217,180,91,.22),transparent 68%); filter:blur(30px); pointer-events:none; }
+.cf-card { position:absolute; top:4%; left:50%; width:clamp(210px,46%,540px); aspect-ratio:4/3; margin-left:calc(clamp(210px,46%,540px) / -2);
+  border-radius:16px; border:1px solid rgba(217,180,91,.4); background:#050606; cursor:pointer; overflow:hidden;
+  transition:transform 1.15s cubic-bezier(.22,.8,.18,1), opacity .9s ease, filter .9s ease, box-shadow 1.15s ease, border-color .9s ease;
+  will-change:transform,opacity; backface-visibility:hidden; }
+.cf-card img { width:100%; height:100%; object-fit:cover; display:block; transform:scale(1.02); }
+.cf-card.mid { border-color:#f5df9a; box-shadow:0 40px 90px rgba(0,0,0,.75),0 0 55px rgba(217,180,91,.28); }
+.cf-card.mid img { animation:cfZoom 9s ease-out forwards; }
+.cf-card::after { content:""; position:absolute; inset:0; background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.14) 50%,transparent 65%); transform:translateX(-120%); }
+.cf-card.mid::after { animation:cfShine 1.8s .5s ease-out 1 forwards; }
+@keyframes cfZoom { from{transform:scale(1.02)} to{transform:scale(1.12)} }
+@keyframes cfShine { to{transform:translateX(120%)} }
+.cf-ref { position:absolute; left:50%; bottom:-2%; width:46%; height:18%; transform:translateX(-50%); background:radial-gradient(ellipse at 50% 0,rgba(217,180,91,.28),transparent 70%); pointer-events:none; }
+.cf-bar { display:flex; align-items:center; justify-content:center; gap:16px; margin-top:22px; }
+.cf-count { font-family:'Playfair Display',Georgia,serif; color:#f5df9a; letter-spacing:.14em; font-size:15px; min-width:64px; text-align:center; }
+.cf-dots { display:flex; gap:10px; }
+.cf-dot { position:relative; width:34px; height:3px; border:0; padding:0; border-radius:3px; background:rgba(217,180,91,.25); cursor:pointer; overflow:hidden; }
+.cf-dot.on::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,#d9b45b,#f5df9a); transform-origin:left; animation:cfFill ${SECONDS}s linear forwards; }
+@keyframes cfFill { from{transform:scaleX(0)} to{transform:scaleX(1)} }
+.cf-arrow { width:38px; height:38px; border-radius:50%; border:1px solid rgba(217,180,91,.5); background:transparent; color:#f5df9a; cursor:pointer; font-size:16px; }
+.cf-arrow:hover { background:rgba(217,180,91,.14); }
+@media(max-width:700px){ .cf-dot { width:20px; } .cf-stage { perspective:900px; } }
+@media (prefers-reduced-motion: reduce){ .cf-card, .cf-card img, .cf-card::after, .cf-dot.on::after { animation:none !important; transition:none !important; } }
 `;
 
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 export default function ActionGallery() {
-  const [order, setOrder] = useState(PHOTOS.map((_, i) => i));
-  const [active, setActive] = useState(-1);
-  const refs = useRef(new Map<number, HTMLDivElement>());
-  const before = useRef<Map<number, DOMRect> | null>(null);
-  const alive = useRef(true);
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const touch = useRef<number | null>(null);
+  const go = (d: number) => setIdx((i) => (i + d + N) % N);
 
-  // FLIP: after the order changes, glide every card from its old spot to its new one
-  useLayoutEffect(() => {
-    const prev = before.current;
-    if (!prev) return;
-    before.current = null;
-    refs.current.forEach((el, id) => {
-      const a = prev.get(id);
-      if (!a) return;
-      const b = el.getBoundingClientRect();
-      const dx = a.left - b.left, dy = a.top - b.top;
-      if (!dx && !dy) return;
-      el.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "translate(0,0)" }], { duration: 750, easing: "cubic-bezier(.45,0,.2,1)" });
-    });
-  }, [order]);
-
+  // advance in order, one photo every few seconds; restarts the timer when the user clicks
   useEffect(() => {
-    alive.current = true;
-    const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    (async () => {
-      if (calm) return;
-      await wait(1200);
-      while (alive.current) {
-        // 1) each photo grows for 1 second, then returns to its card — in order
-        for (let i = 0; i < PHOTOS.length && alive.current; i++) {
-          setActive(i);
-          await wait(1600); // 0.55s grow + 1s hold
-          setActive(-1);
-          await wait(650);
-        }
-        // 2) the whole set slides sideways in rotation, one full turn
-        for (let s = 0; s < PHOTOS.length && alive.current; s++) {
-          const snap = new Map<number, DOMRect>();
-          refs.current.forEach((el, id) => snap.set(id, el.getBoundingClientRect()));
-          before.current = snap;
-          setOrder((o) => [...o.slice(1), o[0]]);
-          await wait(850);
-        }
-        await wait(1500);
-      }
-    })();
-    return () => { alive.current = false; };
-  }, []);
+    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setTimeout(() => go(1), SECONDS * 1000);
+    return () => clearTimeout(t);
+  }, [idx, paused]);
+
+  const style = (i: number): React.CSSProperties => {
+    const d = ((i - idx + N + N / 2) % N) - N / 2; // -3 … +2, shortest way round
+    const a = Math.abs(d);
+    return {
+      transform: `translateX(${d * 46}%) translateZ(${-a * 170}px) rotateY(${-Math.sign(d) * Math.min(a, 2) * 42}deg) scale(${d === 0 ? 1.08 : 0.92})`,
+      opacity: a > 2 ? 0 : 1 - a * 0.28,
+      filter: d === 0 ? "none" : `brightness(${0.55 - (a - 1) * 0.12}) saturate(.85)`,
+      zIndex: 10 - Math.round(a * 2),
+      pointerEvents: a > 2 ? "none" : "auto",
+    };
+  };
 
   return (
-    <div className="ag-grid">
+    <div className="cf" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+      onTouchStart={(e) => { touch.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => { if (touch.current !== null) { const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1); } touch.current = null; }}>
       <style>{GALLERY_CSS}</style>
-      {order.map((id) => (
-        <div key={id} ref={(el) => { if (el) refs.current.set(id, el); else refs.current.delete(id); }} className={`ag-card ${active === id ? "on" : ""}`}>
-          <img src={PHOTOS[id]} alt="Prestigious Youth Academy" loading="lazy" />
-        </div>
-      ))}
+      <div className="cf-stage">
+        <div className="cf-glow" />
+        {PHOTOS.map((src, i) => (
+          <div key={src} className={`cf-card ${i === idx ? "mid" : ""}`} style={style(i)} onClick={() => setIdx(i)}>
+            <img src={src} alt="Prestigious Youth Academy" loading={i < 3 ? "eager" : "lazy"} />
+          </div>
+        ))}
+        <div className="cf-ref" />
+      </div>
+      <div className="cf-bar">
+        <button className="cf-arrow" onClick={() => go(-1)} aria-label="Previous">‹</button>
+        <div className="cf-count">{String(idx + 1).padStart(2, "0")} / {String(N).padStart(2, "0")}</div>
+        <div className="cf-dots">{PHOTOS.map((s, i) => <button key={s} className={`cf-dot ${i === idx ? "on" : ""}`} onClick={() => setIdx(i)} aria-label={`Photo ${i + 1}`} />)}</div>
+        <button className="cf-arrow" onClick={() => go(1)} aria-label="Next">›</button>
+      </div>
     </div>
   );
 }
