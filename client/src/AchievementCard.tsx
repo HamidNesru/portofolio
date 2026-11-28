@@ -5,14 +5,13 @@ const ACHIEVEMENT_CSS = `
 .excel-card { position:relative; display:grid; grid-template-columns:minmax(260px,420px) 1fr; max-width:1120px; margin:0 auto; overflow:hidden;
   border:1px solid rgba(217,180,91,.48); border-radius:18px; background:linear-gradient(135deg,rgba(217,180,91,.12),rgba(255,255,255,.015));
   box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 45px rgba(217,180,91,.08); }
-.excel-photo { position:relative; min-height:360px; }
-.excel-photo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center top; display:block; }
-.excel-photo::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 60%,rgba(8,9,9,.85)); }
+.excel-photo { position:relative; background:#050606; display:flex; align-items:center; justify-content:center; }
+.excel-photo img { display:block; width:100%; height:auto; max-height:560px; object-fit:contain; }
 .excel-body { padding:clamp(28px,4vw,56px); display:flex; flex-direction:column; justify-content:center; }
 .excel-line { width:64px; height:2px; background:linear-gradient(90deg,#d9b45b,#f5df9a); margin:16px 0 20px; }
 .excel-title { font-family:'Playfair Display',Georgia,serif; font-size:clamp(28px,4vw,46px); line-height:1.15; margin:12px 0 0; }
 .excel-copy { color:#b8b7ad; font-size:14px; line-height:1.9; margin:0; max-width:520px; }
-@media(max-width:800px) { .excel-card { grid-template-columns:1fr; } .excel-photo { min-height:300px; } .excel-photo::after { background:linear-gradient(180deg,transparent 60%,rgba(8,9,9,.85)); } }
+@media(max-width:800px) { .excel-card { grid-template-columns:1fr; } }
 `;
 
 export default function AchievementCard() {
