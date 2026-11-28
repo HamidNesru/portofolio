@@ -201,6 +201,27 @@ tbody tr:hover { background:#ffffff06; }
 .notice.error { color:#ffb6ae; background:#421b1b66; border:1px solid #8e373766; }
 .notice.success { color:#a9e6bd; background:#123b2366; border:1px solid #287b4766; }
 .muted { color:#8b8d83; }
+.small-label { display:block; color:#a6a69c; font-size:10px; font-weight:800; letter-spacing:1px; margin-bottom:8px; }
+.form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
+.form-grid .full { grid-column:1/-1; }
+.exam-card,.message-card,.gallery-card {
+  background:#151714; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:13px;
+}
+.gallery-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:15px; }
+.gallery-card { padding:0; overflow:hidden; }
+.gallery-card img { width:100%; height:190px; object-fit:cover; display:block; background:#222; }
+.gallery-caption { padding:15px; }
+.mobile-menu { display:none; }
+@media(max-width:950px) {
+  .sidebar { width:215px; }
+  .stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .feature-grid { grid-template-columns:1fr 1fr; }
+  .activity-strip { grid-template-columns:1fr 1fr; }
+  .gallery-grid { grid-template-columns:1fr 1fr; }
+}
+@media(max-width:700px) {
+  .landing-nav { height:72px; padding:0 17px; }
+  .brand-name { font-size:10px; letter-spacing:1px; }
   .brand-sub { font-size:7px; letter-spacing:1px; }
   .brand-mark { width:39px; height:39px; }
   .hero { min-height:720px; height:90vh; }
@@ -292,6 +313,43 @@ export default function App() {
         supabase.from("school_teacher_assignments").select("id,teacher_id,section_id,subject_id,is_active").eq("is_active", true),
         supabase.from("school_parent_student_links").select("id,parent_id,student_id")
       ]);
+      for (const result of [sectionRes, studentRes, usersRes, subjectsRes, assignmentsRes, linksRes]) if (result.error) throw result.error;
+      setSchoolUsers((usersRes.data || []) as SchoolUser[]);
+      setSubjects((subjectsRes.data || []) as Subject[]);
+      setAssignments((assignmentsRes.data || []) as Assignment[]);
+      setParentLinks((linksRes.data || []) as {id:string;parent_id:string;student_id:string}[]);
+      const sectionRows = (sectionRes.data || []) as Section[];
+      setSections(sectionRows);
+      const studentRows = studentRes.data || [];
+      const ids = studentRows.map((s: any) => s.id);
+      let enrollmentRows: any[] = [];
+      if (ids.length) {
+        const enrollRes = await supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", yearRes.data.id).in("student_id", ids);
+        if (enrollRes.error) throw enrollRes.error;
+        enrollmentRows = enrollRes.data || [];
+      }
+      const mapped: Student[] = studentRows.map((s: any) => {
+        const enrollment = enrollmentRows.find(e => e.student_id === s.id);
+        const section = sectionRows.find(sec => sec.id === enrollment?.section_id);
+        return { ...s, grade: section?.grade ?? 0, section: section?.section_name ?? "—", enrollment_id: enrollment?.id ?? null };
+      });
+      setStudents(mapped);
+    } catch (e) { fail(e instanceof Error ? e.message : "Unable to load school records."); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !hasSupabase) { setSessionReady(true); return; }
+    let alive = true;
+    const verify = async (uid: string | undefined) => {
+      if (!uid) {
+        if (alive) {
+          setProfile(null);
+          setSessionReady(true);
+        }
+        return;
+      }
+
       try {
         const { data, error: profileError } = await supabase!.from("school_profiles")
           .select("id,email,full_name,role,is_active")
@@ -379,7 +437,7 @@ export default function App() {
     try {
       const { error: saveError } = await supabase.from("school_subjects").insert({ name: subjectForm.name.trim(), code: subjectForm.code.trim() || null, grade: Number(subjectForm.grade) });
       if (saveError) throw saveError;
-setSubjectForm({ name: "", code: "", grade: 9 });
+      setSubjectForm({ name: "", code: "", grade: 9 });
       notify("Subject added to the school curriculum.");
       await loadSchoolData();
     } catch (e) { fail(e instanceof Error ? e.message : "Unable to add subject."); }
@@ -482,5 +540,8 @@ setSubjectForm({ name: "", code: "", grade: 9 });
 }
 
 function TrophyIcon() { return <GraduationCap size={29}/>; }
+
+
+
 
 
