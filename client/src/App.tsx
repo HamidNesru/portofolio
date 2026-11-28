@@ -1,67 +1,3 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { GraduationCap, Users, BookOpen, Plus, LogOut, RefreshCw, AlertCircle, CheckCircle2, X, LayoutDashboard, Menu, ArrowRight, Trash2, Pencil, ShieldCheck } from "lucide-react";
-import { supabase, hasSupabase } from "./supabase";
-import PyaAcademicHub from "./PyaAcademicHub";
-import StaffAccountManager from "./StaffAccountManager";
-
-type Profile = { id: string; email: string; full_name: string; role: string; is_active: boolean };
-type Section = { id: string; grade: number; section_name: string; academic_year_id: string };
-type Student = { id: string; admission_number: string; first_name: string; middle_name: string | null; last_name: string; date_of_birth: string | null; gender: string | null; phone: string | null; address: string | null; is_active: boolean; grade: number; section: string; enrollment_id: string | null };
-type StudentForm = { first_name: string; middle_name: string; last_name: string; date_of_birth: string; gender: string; phone: string; address: string; grade: number; section: string };
-type Page = "overview" | "students" | "staff" | "library";
-type SchoolUser = { id: string; email: string; full_name: string; role: string; is_active: boolean };
-type Subject = { id: string; name: string; code: string | null; grade: number };
-type Assignment = { id: string; teacher_id: string; section_id: string; subject_id: string; is_active: boolean };
-const HERO_IMAGES = ["/prestpro.png", "/prest22.jpg", "/prest23.jpg", "/prest9.jpg", "/prest7.jpg"];
-const EMPTY_FORM: StudentForm = { first_name: "", middle_name: "", last_name: "", date_of_birth: "", gender: "", phone: "", address: "", grade: 9, section: "A" };
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
-
-:root {
-  --gold:#d9b45b;
-  --gold2:#f5df9a;
-  --gold3:#936b24;
-  --black:#080909;
-  --panel:#111312;
-  --panel2:#171917;
-  --muted:#92948d;
-  --line:rgba(217,180,91,.20);
-}
-* { box-sizing:border-box; }
-body { margin:0; background:var(--black); color:#f6f3eb; font-family:'DM Sans',sans-serif; }
-button,input,select,textarea { font:inherit; }
-button { cursor:pointer; }
-.pya-app { min-height:100vh; background:var(--black); color:#f6f3eb; }
-.gold-text {
-  background:linear-gradient(110deg,#fff1bb 0%,#d8b25a 35%,#f7e4a3 60%,#a77a2b 100%);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.gold-button {
-  background:linear-gradient(110deg,#f2d98d,#c49a43 55%,#936b24);
-  color:#100e09; border:1px solid rgba(255,231,166,.55);
-  border-radius:8px; padding:13px 20px; font-weight:800;
-  letter-spacing:.04em; transition:.25s; box-shadow:0 7px 25px rgba(196,154,67,.13);
-}
-.gold-button:hover { transform:translateY(-2px); box-shadow:0 10px 30px rgba(196,154,67,.3); }
-.outline-button {
-  border:1px solid rgba(230,199,121,.5); color:#e7cc83;
-  background:rgba(255,255,255,.025); border-radius:8px;
-  padding:12px 19px; font-weight:700; transition:.2s;
-}
-.outline-button:hover { background:rgba(217,180,91,.12); }
-.eyebrow { color:var(--gold); font-size:10px; letter-spacing:4px; font-weight:800; text-transform:uppercase; }
-.serif { font-family:'Playfair Display',Georgia,serif; }
-.landing { min-height:100vh; background:#080909; overflow:hidden; }
-.landing-nav {
-  position:absolute; z-index:20; top:0; left:0; right:0; height:86px;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:0 clamp(20px,6vw,90px); border-bottom:1px solid rgba(217,180,91,.2);
-  background:linear-gradient(180deg,rgba(0,0,0,.8),rgba(0,0,0,.12));
-}
-.brand { display:flex; align-items:center; gap:13px; }
-.brand-mark {
-  height:46px; width:46px; display:grid; place-items:center; border-radius:12px;
-  color:#161109; background:linear-gradient(140deg,#f8e7aa,#b98b35);
   box-shadow:0 0 25px rgba(217,180,91,.2);
 }
 .brand-name { font-size:13px; letter-spacing:2px; font-weight:800; color:#f0d68d; }
@@ -98,6 +34,34 @@ button { cursor:pointer; }
 .hero-dots { display:flex; gap:8px; }
 .hero-dot { width:25px; height:3px; border:0; border-radius:5px; background:#777; padding:0; }
 .hero-dot.active { width:48px; background:#e5c36d; }
+.landing-section { padding:100px clamp(22px,7vw,100px); }
+.section-heading { font-family:'Playfair Display',Georgia,serif; font-size:clamp(32px,4vw,48px); margin:13px 0; }
+.feature-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:38px; }
+.feature-card {
+  padding:30px; min-height:210px; border:1px solid var(--line);
+  background:linear-gradient(145deg,#171916,#0d0f0e);
+  border-radius:13px; transition:.3s;
+}
+.feature-card:hover { transform:translateY(-5px); border-color:rgba(217,180,91,.65); box-shadow:0 15px 35px #0008; }
+.feature-icon { color:#dfbd69; margin-bottom:22px; }
+.feature-card h3 { font-family:'Playfair Display',Georgia,serif; font-size:21px; margin:0 0 10px; }
+.feature-card p { color:#9e9f98; font-size:13px; line-height:1.8; margin:0; }
+.activity-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:38px; }
+.activity-tile { position:relative; overflow:hidden; border-radius:10px; min-height:190px; background:#1b1b18; }
+.activity-tile img { width:100%; height:220px; object-fit:cover; display:block; transition:transform .6s; }
+.activity-tile:hover img { transform:scale(1.06); }
+.activity-tile:after { content:''; position:absolute; inset:35% 0 0; background:linear-gradient(transparent,#000d); }
+.activity-tile span { position:absolute; z-index:1; bottom:15px; left:15px; font-size:12px; font-weight:800; }
+.landing-footer { border-top:1px solid var(--line); padding:32px 7vw; color:#77786f; font-size:11px; display:flex; justify-content:space-between; gap:15px; flex-wrap:wrap; }
+.login-overlay {
+  position:fixed; inset:0; z-index:100; background:rgba(0,0,0,.86);
+  backdrop-filter:blur(12px); display:grid; place-items:center; padding:20px;
+}
+.login-card {
+  width:min(440px,100%); background:linear-gradient(145deg,#191a17,#0b0c0b);
+  border:1px solid rgba(217,180,91,.5); border-radius:17px;
+  padding:34px; box-shadow:0 25px 100px #000;
+}
 .login-input,.field {
   width:100%; background:#0b0d0c; color:#f3eee0; border:1px solid #34352f;
   border-radius:7px; padding:13px 14px; outline:none; font-size:13px;
@@ -121,63 +85,6 @@ button { cursor:pointer; }
   color:#a7a69d; border:1px solid transparent; border-radius:8px;
   background:transparent; text-align:left; font-size:12px; font-weight:700;
   transition:.2s; margin-bottom:5px;
-}
-.side-link:hover { color:#f1d78f; background:#ffffff08; }
-.side-link.active {
-  color:#f0d78f; background:linear-gradient(90deg,rgba(217,180,91,.16),rgba(217,180,91,.035));
-  border-color:rgba(217,180,91,.22); box-shadow:inset 3px 0 #d9b45b;
-}
-.side-bottom { margin-top:auto; border-top:1px solid var(--line); padding-top:18px; }
-.portal-main { flex:1; min-width:0; }
-.topbar {
-  height:76px; border-bottom:1px solid var(--line); background:#0d0f0e;
-  display:flex; justify-content:space-between; align-items:center; padding:0 30px;
-  position:sticky; top:0; z-index:20;
-}
-.topbar-user { display:flex; align-items:center; gap:12px; }
-.avatar {
-  width:37px; height:37px; border-radius:50%; display:grid; place-items:center;
-  background:linear-gradient(140deg,#efd78e,#936b24); color:#17130a; font-weight:900;
-}
-.content { max-width:1500px; padding:30px; margin:auto; }
-.page-title { font-family:'Playfair Display',Georgia,serif; font-size:29px; margin:0; }
-.page-sub { color:#85867d; font-size:12px; margin-top:7px; }
-.welcome-banner {
-  position:relative; overflow:hidden; border:1px solid rgba(217,180,91,.32);
-  background:radial-gradient(ellipse at 85% 50%,rgba(188,146,55,.22),transparent 42%),linear-gradient(110deg,#1a1b16,#10120f);
-  border-radius:13px; padding:30px; margin-bottom:24px;
-}
-.welcome-banner:after { content:'✦'; position:absolute; right:55px; top:5px; font-size:120px; color:#d9b45b12; }
-.stats-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:22px 0; }
-.stat-card {
-  border:1px solid var(--line); border-radius:10px; padding:19px;
-  background:linear-gradient(145deg,#171916,#101210); min-width:0;
-}
-.stat-top { display:flex; justify-content:space-between; color:#9b9b91; font-size:11px; align-items:center; }
-.stat-icon { color:#d9b45b; background:rgba(217,180,91,.1); border-radius:8px; padding:9px; }
-.stat-value { font-size:29px; font-weight:800; color:#f0d68d; margin-top:17px; }
-.stat-note { font-size:10px; color:#777970; margin-top:4px; }
-.panel {
-  background:linear-gradient(145deg,#151714,#101210); border:1px solid var(--line);
-  border-radius:11px; padding:22px; min-width:0;
-}
-.panel-title { color:#ead18c; font-family:'Playfair Display',Georgia,serif; font-size:19px; margin:0 0 18px; }
-.panel-grid { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; }
-.table-wrap { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; min-width:900px; font-size:11px; }
-th { color:#e7ca7b; text-align:left; padding:13px 10px; background:#1b1d18; white-space:nowrap; }
-td { padding:12px 10px; border-bottom:1px solid #292b25; color:#d0d0c7; }
-tbody tr:hover { background:#ffffff06; }
-.table-input { width:55px; background:#090b09; border:1px solid #36372f; border-radius:5px; padding:7px 4px; color:#f4dfa0; text-align:center; }
-.notice { padding:13px 16px; border-radius:8px; font-size:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; }
-.notice.error { color:#ffb6ae; background:#421b1b66; border:1px solid #8e373766; }
-.notice.success { color:#a9e6bd; background:#123b2366; border:1px solid #287b4766; }
-.muted { color:#8b8d83; }
-.small-label { display:block; color:#a6a69c; font-size:10px; font-weight:800; letter-spacing:1px; margin-bottom:8px; }
-.form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:13px; }
-.form-grid .full { grid-column:1/-1; }
-.exam-card,.message-card,.gallery-card {
-  background:#151714; border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:13px;
 }
   .brand-sub { font-size:7px; letter-spacing:1px; }
   .brand-mark { width:39px; height:39px; }
@@ -248,48 +155,30 @@ export default function App() {
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "", grade: 9 });
   const [assignmentForm, setAssignmentForm] = useState({ teacher_id: "", section_id: "", subject_id: "" });
   const [parentForm, setParentForm] = useState({ parent_id: "", student_id: "" });
+      try {
+        const { data, error: profileError } = await supabase!.from("school_profiles")
+          .select("id,email,full_name,role,is_active")
+          .eq("id", uid)
+          .maybeSingle();
 
-  const notify = (s: string) => { setNotice(s); setError(""); };
-  const fail = (s: string) => { setError(s); setNotice(""); };
+        if (!alive) return;
 
-  useEffect(() => { const timer = window.setInterval(() => setHeroIndex(i => (i + 1) % HERO_IMAGES.length), 5500); return () => window.clearInterval(timer); }, []);
-
-  const loadSchoolData = useCallback(async () => {
-    if (!supabase || !hasSupabase) { fail("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your Vercel environment variables."); return; }
-    setLoading(true); setError("");
-    try {
-      const sectionRows = (sectionRes.data || []) as Section[];
-      setSections(sectionRows);
-      const studentRows = studentRes.data || [];
-      const ids = studentRows.map((s: any) => s.id);
-      let enrollmentRows: any[] = [];
-      if (ids.length) {
-        const enrollRes = await supabase.from("school_enrollments").select("id,student_id,section_id,academic_year_id").eq("academic_year_id", yearRes.data.id).in("student_id", ids);
-        if (enrollRes.error) throw enrollRes.error;
-        enrollmentRows = enrollRes.data || [];
+        if (profileError || !data || !data.is_active || !["admin", "teacher"].includes(data.role)) {
+          await supabase!.auth.signOut();
+          setProfile(null);
+          fail(profileError?.message || "This account does not have an active administrator or teacher profile.");
+        } else {
+          setProfile(data as Profile);
+          if (data.role === "teacher") setPage("library");
+        }
+      } catch (verificationError) {
+        if (!alive) return;
+        await supabase!.auth.signOut();
+        setProfile(null);
+        fail(verificationError instanceof Error ? verificationError.message : "Unable to verify this account.");
+      } finally {
+        if (alive) setSessionReady(true);
       }
-      const mapped: Student[] = studentRows.map((s: any) => {
-        const enrollment = enrollmentRows.find(e => e.student_id === s.id);
-        const section = sectionRows.find(sec => sec.id === enrollment?.section_id);
-        return { ...s, grade: section?.grade ?? 0, section: section?.section_name ?? "—", enrollment_id: enrollment?.id ?? null };
-      });
-      setStudents(mapped);
-    } catch (e) { fail(e instanceof Error ? e.message : "Unable to load school records."); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => {
-    if (!supabase || !hasSupabase) { setSessionReady(true); return; }
-    let alive = true;
-    const verify = async (uid: string | undefined) => {
-      if (!uid) { if (alive) { setProfile(null); setSessionReady(true); } return; }
-      const { data, error: profileError } = await supabase!.from("school_profiles").select("id,email,full_name,role,is_active").eq("id", uid).maybeSingle();
-      if (!alive) return;
-      if (profileError || !data || !data.is_active || !["admin", "teacher"].includes(data.role)) {
-        await supabase!.auth.signOut(); setProfile(null);
-        fail(profileError?.message || "This account does not have an active administrator or teacher profile.");
-      } else { setProfile(data as Profile); if (data.role === "teacher") setPage("library"); }
-      setSessionReady(true);
     };
     supabase.auth.getSession().then(({ data }) => { void verify(data.session?.user.id); });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { void verify(session?.user.id); });
@@ -344,13 +233,22 @@ export default function App() {
     } catch (e) { fail(e instanceof Error ? e.message : "Unable to save student."); }
     finally { setBusy(false); }
   };
+
+  const saveSubject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    if (!subjectForm.name.trim()) return fail("Enter a subject name.");
+    setBusy(true);
+    try {
+      const { error: saveError } = await supabase.from("school_subjects").insert({ name: subjectForm.name.trim(), code: subjectForm.code.trim() || null, grade: Number(subjectForm.grade) });
+      if (saveError) throw saveError;
+      setSubjectForm({ name: "", code: "", grade: 9 });
       notify("Subject added to the school curriculum.");
       await loadSchoolData();
     } catch (e) { fail(e instanceof Error ? e.message : "Unable to add subject."); }
     finally { setBusy(false); }
   };
-
-  const saveAssignment = async (e: React.FormEvent) => {
+const saveAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
     if (!assignmentForm.teacher_id || !assignmentForm.section_id || !assignmentForm.subject_id) return fail("Select a teacher, class section and subject.");
